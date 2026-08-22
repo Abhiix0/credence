@@ -1,0 +1,388 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Share+Tech+Mono&display=swap');
+@import "tailwindcss";
+
+/* ─── Design Tokens ───────────────────────────────────────────────────────── */
+@theme {
+  --color-background:       #0a0a0f;
+  --color-foreground:       #e0e0e0;
+  --color-card:             #12121a;
+  --color-muted:            #1c1c2e;
+  --color-muted-fg:         #6b7280;
+  --color-border:           #2a2a3a;
+  --color-accent:           #00ff88;
+  --color-accent-secondary: #ff00ff;
+  --color-accent-tertiary:  #00d4ff;
+  --color-destructive:      #ff3366;
+
+  --font-display: 'Orbitron', 'Share Tech Mono', monospace;
+  --font-mono:    'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-label:   'Share Tech Mono', monospace;
+  --font-body:    'JetBrains Mono', monospace;
+}
+
+/* ─── Reset ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ── Page-wide scanline overlay ──────────────────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KEYFRAMES
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* Ledger scroll */
+@keyframes ledger-scroll {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+/* Blinking cursor — sharp step, not fade */
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* ── GLITCH: the ghost layers (::before = magenta, ::after = cyan)
+   Duration 2.4s so bursts fire ~every 2.4 seconds — clearly visible.
+   Using steps(1) so transitions are instant snaps, not blends. ─────────── */
+@keyframes glitch-before {
+  /* Idle */
+  0%,  14% { opacity: 0; transform: translate(0,0);    clip-path: inset(0 0 100% 0); }
+  /* Burst 1 — fast 3-frame rattle */
+  15%       { opacity: 1; transform: translate(-5px, 2px);  clip-path: inset(8%  0 72% 0); }
+  17%       { opacity: 1; transform: translate( 4px,-3px);  clip-path: inset(62% 0 12% 0); }
+  19%       { opacity: 1; transform: translate(-3px, 1px);  clip-path: inset(30% 0 45% 0); }
+  21%       { opacity: 0; transform: translate(0,0);    clip-path: inset(0 0 100% 0); }
+  /* Idle */
+  21%, 59%  { opacity: 0; transform: translate(0,0);    clip-path: inset(0 0 100% 0); }
+  /* Burst 2 */
+  60%       { opacity: 1; transform: translate( 5px,-2px);  clip-path: inset(50% 0 25% 0); }
+  62%       { opacity: 1; transform: translate(-4px, 3px);  clip-path: inset(10% 0 65% 0); }
+  64%       { opacity: 0; transform: translate(0,0);    clip-path: inset(0 0 100% 0); }
+  100%      { opacity: 0; }
+}
+
+@keyframes glitch-after {
+  0%,  16% { opacity: 0; transform: translate(0,0);    clip-path: inset(0 0 100% 0); }
+  17%       { opacity: 1; transform: translate( 5px,-3px);  clip-path: inset(65% 0  8% 0); }
+  19%       { opacity: 1; transform: translate(-3px, 2px);  clip-path: inset(15% 0 55% 0); }
+  21%       { opacity: 1; transform: translate( 4px,-1px);  clip-path: inset(42% 0 32% 0); }
+  23%       { opacity: 0; transform: translate(0,0);    clip-path: inset(0 0 100% 0); }
+  23%, 61%  { opacity: 0; transform: translate(0,0);    clip-path: inset(0 0 100% 0); }
+  62%       { opacity: 1; transform: translate(-5px, 3px);  clip-path: inset(28% 0 48% 0); }
+  64%       { opacity: 1; transform: translate( 3px,-2px);  clip-path: inset(70% 0  5% 0); }
+  66%       { opacity: 0; transform: translate(0,0);    clip-path: inset(0 0 100% 0); }
+  100%      { opacity: 0; }
+}
+
+/* Steady RGB aberration on base element */
+@keyframes rgb-shift {
+  0%        { text-shadow: -3px 0 rgba(255,0,255,0.85), 3px 0 rgba(0,212,255,0.85); }
+  25%       { text-shadow:  3px 0 rgba(255,0,255,0.85),-3px 0 rgba(0,212,255,0.85); }
+  50%       { text-shadow: -3px 0 rgba(255,0,255,0.85), 3px 0 rgba(0,212,255,0.85); }
+  75%       { text-shadow:  2px 0 rgba(255,0,255,0.85),-2px 0 rgba(0,212,255,0.85); }
+  100%      { text-shadow: -3px 0 rgba(255,0,255,0.85), 3px 0 rgba(0,212,255,0.85); }
+}
+
+/* Full-element shake on glitch burst — applied to the wrapper span */
+@keyframes glitch-shake {
+  0%,  14% { transform: translate(0,0)    skew(0deg); }
+  15%       { transform: translate(-2px, 1px) skew(-0.5deg); }
+  17%       { transform: translate( 2px,-1px) skew( 0.5deg); }
+  19%       { transform: translate(-1px, 2px) skew(-0.3deg); }
+  21%       { transform: translate(0,0)    skew(0deg); }
+  21%, 59%  { transform: translate(0,0)    skew(0deg); }
+  60%       { transform: translate( 2px,-1px) skew( 0.4deg); }
+  62%       { transform: translate(-2px, 1px) skew(-0.4deg); }
+  64%       { transform: translate(0,0)    skew(0deg); }
+  100%      { transform: translate(0,0)    skew(0deg); }
+}
+
+/* Typewriter reveal — steps match character count set via JS custom property */
+@keyframes typewriter {
+  from { width: 0; }
+  to   { width: 100%; }
+}
+
+/* Cursor blink for typewriter */
+@keyframes tw-cursor {
+  0%, 49% { border-right-color: #00ff88; }
+  50%,100% { border-right-color: transparent; }
+}
+
+/* Neon pulse on borders */
+@keyframes neon-pulse {
+  0%, 100% { box-shadow: 0 0 4px #00ff88, 0 0  8px rgba(0,255,136,0.3); }
+  50%       { box-shadow: 0 0 8px #00ff88, 0 0 20px rgba(0,255,136,0.5), 0 0 35px rgba(0,255,136,0.2); }
+}
+
+/* Border hue-rotate — cycling neon color */
+@keyframes border-cycle {
+  0%   { border-color: #00ff88; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+  33%  { border-color: #00d4ff; box-shadow: 0 0 8px rgba(0,212,255,0.4); }
+  66%  { border-color: #ff00ff; box-shadow: 0 0 8px rgba(255,0,255,0.4); }
+  100% { border-color: #00ff88; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+}
+
+/* Flicker — simulates unstable power draw */
+@keyframes flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+  20%, 24%, 55%                            { opacity: 0.6; }
+}
+
+/* Pulse dot */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px #00ff88; }
+  50%       { opacity: 0.3; box-shadow: none; }
+}
+
+/* Scanline sweep inside panels */
+@keyframes scanline-sweep {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(800%); }
+}
+
+/* Fade + slide up for section entrances */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Chamfered corners ─────────────────────────────────────────────────── */
+.cyber-chamfer {
+  clip-path: polygon(
+    0 12px, 12px 0,
+    calc(100% - 12px) 0, 100% 12px,
+    100% calc(100% - 12px), calc(100% - 12px) 100%,
+    12px 100%, 0 calc(100% - 12px)
+  );
+}
+.cyber-chamfer-sm {
+  clip-path: polygon(
+    0 7px, 7px 0,
+    calc(100% - 7px) 0, 100% 7px,
+    100% calc(100% - 7px), calc(100% - 7px) 100%,
+    7px 100%, 0 calc(100% - 7px)
+  );
+}
+
+/* ── Glitch text ──────────────────────────────────────────────────────── */
+/* Wrapper: shakes the whole line */
+.cyber-glitch-wrap {
+  display: block;
+  animation: glitch-shake 2.4s steps(1) infinite;
+}
+
+/* Inner span: carries the base color + rgb-shift */
+.cyber-glitch {
+  position: relative;
+  display: inline-block;
+  animation: rgb-shift 2.4s linear infinite;
+}
+
+/* Ghost layers */
+.cyber-glitch::before,
+.cyber-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  /* Inherit the same font/size/weight so ghost is pixel-perfect */
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.cyber-glitch::before {
+  color: #ff00ff;
+  text-shadow: none;
+  animation: glitch-before 2.4s steps(1) infinite;
+}
+.cyber-glitch::after {
+  color: #00d4ff;
+  text-shadow: none;
+  animation: glitch-after 2.4s steps(1) infinite;
+  animation-delay: 0.08s;
+}
+
+/* Stagger delays for multiple glitch lines */
+.cyber-glitch-d1 { animation-delay: 0.3s; }
+.cyber-glitch-d1::before { animation-delay: 0.3s; }
+.cyber-glitch-d1::after  { animation-delay: 0.38s; }
+
+.cyber-glitch-d2 { animation-delay: 0.9s; }
+.cyber-glitch-d2::before { animation-delay: 0.9s; }
+.cyber-glitch-d2::after  { animation-delay: 0.98s; }
+
+.cyber-glitch-d3 { animation-delay: 1.4s; }
+.cyber-glitch-d3::before { animation-delay: 1.4s; }
+.cyber-glitch-d3::after  { animation-delay: 1.48s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cyber-glitch-wrap { animation: none; }
+  .cyber-glitch      { animation: none; }
+  .cyber-glitch::before,
+  .cyber-glitch::after { display: none; }
+}
+
+/* ── Neon glow text colors ────────────────────────────────────────────── */
+.glow-accent {
+  color: #00ff88;
+  text-shadow:
+    0 0 8px  rgba(0,255,136,0.9),
+    0 0 20px rgba(0,255,136,0.5),
+    0 0 45px rgba(0,255,136,0.25);
+}
+.glow-magenta {
+  color: #ff00ff;
+  text-shadow:
+    0 0 8px  rgba(255,0,255,0.9),
+    0 0 20px rgba(255,0,255,0.5),
+    0 0 45px rgba(255,0,255,0.25);
+}
+.glow-cyan {
+  color: #00d4ff;
+  text-shadow:
+    0 0 8px  rgba(0,212,255,0.9),
+    0 0 20px rgba(0,212,255,0.5),
+    0 0 45px rgba(0,212,255,0.25);
+}
+
+/* ── Typewriter ─────────────────────────────────────────────────────────── */
+.typewriter {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
+  border-right: 2px solid #00ff88;
+  animation:
+    typewriter 2.2s steps(60, end) 0.8s forwards,
+    tw-cursor  0.8s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typewriter { width: auto; border-right: none; animation: none; }
+}
+
+/* ── Blinking cursor append ─────────────────────────────────────────────── */
+.blink-cursor::after {
+  content: '_';
+  color: #00ff88;
+  animation: blink 1s step-end infinite;
+  margin-left: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .blink-cursor::after { animation: none; opacity: 1; }
+}
+
+/* ── Pulse dot ──────────────────────────────────────────────────────────── */
+.pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pulse-dot { animation: none; } }
+
+/* ── Flicker ────────────────────────────────────────────────────────────── */
+.flicker { animation: flicker 6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .flicker { animation: none; } }
+
+/* ── Neon pulse on cards/borders ─────────────────────────────────────────── */
+.neon-pulse { animation: neon-pulse 2.5s ease-in-out infinite; }
+
+/* ── Border color cycle ──────────────────────────────────────────────────── */
+.border-cycle { animation: border-cycle 4s linear infinite; }
+
+/* ── Fade-up entrance ────────────────────────────────────────────────────── */
+.fade-up {
+  animation: fade-up 0.6s cubic-bezier(0.16,1,0.3,1) both;
+}
+.fade-up-d1 { animation-delay: 0.1s; }
+.fade-up-d2 { animation-delay: 0.2s; }
+.fade-up-d3 { animation-delay: 0.3s; }
+.fade-up-d4 { animation-delay: 0.4s; }
+.fade-up-d5 { animation-delay: 0.5s; }
+
+/* ── Circuit grid background ─────────────────────────────────────────────── */
+.circuit-bg {
+  background-image:
+    linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ── Scanline sweep inside panels ────────────────────────────────────────── */
+.scanline-sweep { position: relative; overflow: hidden; }
+.scanline-sweep::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, transparent, rgba(0,255,136,0.05), transparent);
+  animation: scanline-sweep 3.5s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scanline-sweep::before { display: none; }
+}
+
+/* ── Ledger scroll ───────────────────────────────────────────────────────── */
+.ledger-track { animation: ledger-scroll 30s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ledger-track { animation-play-state: paused; } }
+
+/* ── Ledger fade mask ────────────────────────────────────────────────────── */
+.ledger-mask {
+  mask-image: linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%);
+}
+
+/* ── Hairline ────────────────────────────────────────────────────────────── */
+.hairline { border-color: rgba(255,255,255,0.07); }
+
+/* ── HUD corner accents ──────────────────────────────────────────────────── */
+.hud-corners { position: relative; }
+.hud-corners::before,
+.hud-corners::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  border-style: solid;
+  opacity: 0.8;
+  pointer-events: none;
+}
+.hud-corners::before {
+  top: -1px; left: -1px;
+  border-color: #00ff88 transparent transparent #00ff88;
+  border-width: 2px 0 0 2px;
+}
+.hud-corners::after {
+  bottom: -1px; right: -1px;
+  border-color: transparent #00ff88 #00ff88 transparent;
+  border-width: 0 2px 2px 0;
+}
