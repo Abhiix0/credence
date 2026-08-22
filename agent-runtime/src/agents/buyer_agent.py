@@ -17,6 +17,7 @@ from ..policies import BasePolicy, ConservativePolicy, AggressivePolicy, Reputat
 from ..wallet import WalletSigner
 from ..market import TaskMarketClient, AgentRegistryClient
 from ..config import AgentConfig
+from ..logging_utils import log_worker_selection, log_reputation_change
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -229,14 +230,7 @@ class BuyerAgent:
         selected_score: float
     ) -> None:
         """
-        Log selection decision in PRD-specified format.
-        
-        Format per PRD P2.12:
-        - Agent name and task ID
-        - All candidates with price/reputation
-        - Active policy name
-        - Final decision (selected worker)
-        - One-sentence reason derived from score breakdown
+        Log selection decision using standardized logging utility.
         
         Args:
             task: Task being assigned
@@ -244,42 +238,38 @@ class BuyerAgent:
             selected_bid: The selected bid
             selected_score: Score of selected bid
         """
-        logger.info("="*70)
-        logger.info(f"WORKER SELECTION DECISION - {self.name}")
-        logger.info("="*70)
-        logger.info(f"Task ID: #{task.task_id}")
-        logger.info(f"Required Capability: {task.required_capability}")
-        logger.info(f"Task Reward: {task.reward_wei} wei ({task.reward_wei / 1e18:.6f} ETH)")
-        logger.info("-"*70)
-        
-        # Log all candidates
-        logger.info(f"Evaluated Candidates ({len(scored_bids)} bids):")
-        for i, (bid, score) in enumerate(scored_bids, 1):
+        # Build candidates list
+        candidates = []
+        for bid, score in scored_bids:
             reputation = self.registry.get_agent_reputation(bid.bidder)
             rep_score = reputation.score if reputation else 50
-            price_eth = bid.proposed_price_wei / 1e18
-            price_pct = (bid.proposed_price_wei / task.reward_wei * 100) if task.reward_wei > 0 else 0
             
-            marker = "👑 SELECTED" if bid.bid_id == selected_bid.bid_id else f"   #{i}"
-            logger.info(
-                f"  {marker} | Bid #{bid.bid_id} | Worker: {bid.bidder[:10]}... | "
-                f"Score: {score:.2f} | Rep: {rep_score} | "
-                f"Price: {price_eth:.6f} ETH ({price_pct:.1f}%) | "
-                f"Duration: {bid.estimated_duration_sec}s"
-            )
+            candidates.append({
+                "bidder": bid.bidder,
+                "bid_id": bid.bid_id,
+                "score": score,
+                "reputation": rep_score,
+                "price_wei": bid.proposed_price_wei,
+                "duration_sec": bid.estimated_duration_sec,
+            })
         
-        logger.info("-"*70)
-        logger.info(f"Active Policy: {self.policy.name}")
-        logger.info(f"Risk Tolerance Threshold: {self.risk_tolerance}")
-        
-        # Generate reason based on policy type and score breakdown
+        # Generate reason
         reason = self._generate_selection_reason(task, selected_bid, selected_score, scored_bids)
         
-        logger.info("-"*70)
-        logger.info(f"FINAL DECISION: Selected Worker {selected_bid.bidder[:10]}... (Bid #{selected_bid.bid_id})")
-        logger.info(f"Selection Score: {selected_score:.2f}/100")
-        logger.info(f"Reason: {reason}")
-        logger.info("="*70)
+        # Use standardized logging
+        log_worker_selection(
+            agent_name=self.name,
+            task_id=task.task_id,
+            task_capability=task.required_capability,
+            task_reward_wei=task.reward_wei,
+            candidates=candidates,
+            policy_name=self.policy.name,
+            risk_tolerance=self.risk_tolerance,
+            selected_worker=selected_bid.bidder,
+            selected_bid_id=selected_bid.bid_id,
+            selected_score=selected_score,
+            reason=reason
+        )
 
     def _generate_selection_reason(
         self,
@@ -633,34 +623,45 @@ class BuyerAgent:
         """
         passed = (status == TaskStatus.VERIFIED_PASS)
         
-        logger.info("="*70)
-        logger.info(f"TASK SETTLEMENT - {self.name}")
-        logger.info("="*70)
-        logger.info(f"Task ID: #{task.task_id}")
-        logger.info(f"Worker: {task.selected_worker}")
-        logger.info(f"Result: {'✅ PASS' if passed else '❌ FAIL'}")
-        logger.info("="*70)
-        
         # Fetch current reputation
         if task.selected_worker:
             reputation = self.registry.get_agent_reputation(task.selected_worker)
             
             if reputation:
-                logger.info(f"Worker reputation before: score={reputation.score}, "
-                           f"completed={reputation.completed_tasks}, failed={reputation.failed_tasks}")
+                # Calculate simulated changes
+                old_score = reputation.score
+                old_completed = reputation.completed_tasks
+                old_failed = reputation.failed_tasks
+                old_stake = reputation.simulated_stake_wei
                 
-                # Simulate local reputation update
-                # (On-chain updates happen in contract, this is just for logging)
                 if passed:
-                    logger.info(f"  → Reputation improved (task passed)")
+                    new_score = min(100, old_score + 2)
+                    new_completed = old_completed + 1
+                    new_failed = old_failed
+                    stake_change = 0
+                    change_type = "Task Pass"
                 else:
-                    logger.info(f"  → Reputation penalized (task failed)")
-                    # Simulate stake slash
-                    if reputation.simulated_stake_wei > 0:
-                        slash_amount = min(reputation.simulated_stake_wei, task.reward_wei // 10)
-                        logger.info(f"  → Simulated stake slash: {slash_amount} wei")
-        
-        logger.info("="*70)
+                    new_score = max(0, old_score - 10)
+                    new_completed = old_completed
+                    new_failed = old_failed + 1
+                    stake_change = -min(old_stake, task.reward_wei // 10)
+                    change_type = "Task Fail"
+                
+                # Use standardized logging
+                log_reputation_change(
+                    agent_name=self.name,
+                    worker_address=task.selected_worker,
+                    task_id=task.task_id,
+                    change_type=change_type,
+                    old_score=old_score,
+                    new_score=new_score,
+                    old_completed=old_completed,
+                    new_completed=new_completed,
+                    old_failed=old_failed,
+                    new_failed=new_failed,
+                    stake_change_wei=stake_change,
+                    reason=f"Task settlement: {'worker delivered valid result' if passed else 'worker failed verification'}"
+                )
 
     def step(self) -> None:
         """

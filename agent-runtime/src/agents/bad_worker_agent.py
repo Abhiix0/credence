@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 
 from ..models import Agent, Task, TaskStatus
 from .base_agent import AutonomousAgent
+from ..logging_utils import log_bid_decision
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -104,9 +105,17 @@ class BadWorkerAgent(AutonomousAgent):
         proposed_price = max(int(task.reward_wei * 0.5), 1)  # 50% of reward
         estimated_duration = 300  # 5 minutes
         
-        logger.info(
-            f"[Decide] AGGRESSIVE BID on Task #{task.task_id} @ {proposed_price} wei "
-            f"(50% of reward, {estimated_duration}s)"
+        # Use standardized logging
+        log_bid_decision(
+            agent_name=self.agent_state.name,
+            task_id=task.task_id,
+            task_capability=task.required_capability,
+            task_reward_wei=task.reward_wei,
+            policy_name="AggressiveBad",
+            decision="BID",
+            proposed_price_wei=proposed_price,
+            estimated_duration_sec=estimated_duration,
+            reason="Bad worker always bids aggressively at 50% reward with fast delivery promise"
         )
         
         return {

@@ -27,6 +27,7 @@ from ..models import Task, TaskStatus
 from ..wallet import WalletSigner
 from ..market import TaskMarketClient
 from ..execution import TaskExecutor
+from ..logging_utils import log_verification_result
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -126,11 +127,6 @@ class VerifierAgent:
             # Compare computed hash with submitted hash
             hash_match = computed_hash == task.result_hash
             
-            logger.info(f"Hash comparison for Task #{task.task_id}:")
-            logger.info(f"  Submitted:  {task.result_hash.hex()}")
-            logger.info(f"  Computed:   {computed_hash.hex()}")
-            logger.info(f"  Match:      {hash_match}")
-            
             # Validate URI format (should match expected pattern)
             uri_valid = task.result_uri.startswith(f"ipfs://result-{task.task_id}-")
             
@@ -140,7 +136,17 @@ class VerifierAgent:
             # Verification passes if hash matches and URI format is valid
             verification_passed = hash_match and uri_valid
             
-            logger.info(f"[Verify] Task #{task.task_id} verification: {'PASS' if verification_passed else 'FAIL'}")
+            # Use standardized logging
+            log_verification_result(
+                agent_name=self.name,
+                task_id=task.task_id,
+                worker_address=task.selected_worker or "Unknown",
+                verification_passed=verification_passed,
+                computed_hash=computed_hash.hex(),
+                submitted_hash=task.result_hash.hex(),
+                reason=f"Hash {'matches' if hash_match else 'mismatch'} and URI format is {'valid' if uri_valid else 'invalid'}"
+            )
+            
             return verification_passed
             
         except Exception as e:
@@ -319,6 +325,17 @@ class VerifierAgent:
                 self.verify_and_submit(task, use_light_verification=use_light_verification)
             except Exception as e:
                 logger.error(f"Failed to verify Task #{task.task_id}: {e}")
+
+    def step(self) -> None:
+        """
+        Execute one cycle of the verifier agent.
+        
+        Discovers and verifies all pending tasks.
+        """
+        try:
+            self.verify_all_pending(use_light_verification=False)
+        except Exception as e:
+            logger.error(f"Error in verifier cycle: {e}")
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ from ..policies import (
 from ..wallet import WalletSigner
 from ..market import TaskMarketClient
 from ..execution import TaskExecutor
+from ..logging_utils import log_bid_decision, log_reputation_change
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -146,14 +147,28 @@ class AutonomousAgent:
     def evaluate_and_decide(self, task: Task) -> Optional[dict]:
         """Evaluate task through policy and decide bidding action."""
         should_bid, price, duration = self.policy.evaluate(self.agent_state, task)
+        
         if should_bid and price and duration:
-            logger.info(f"[Decide] Policy accepted Task #{task.task_id} @ {price} wei (duration: {duration}s)")
+            # Use standardized logging for bid decision
+            log_bid_decision(
+                agent_name=self.agent_state.name,
+                task_id=task.task_id,
+                task_capability=task.required_capability,
+                task_reward_wei=task.reward_wei,
+                policy_name=self.policy.name,
+                decision="BID",
+                proposed_price_wei=price,
+                estimated_duration_sec=duration,
+                reason=f"Policy accepted task based on capability match and reward threshold"
+            )
             return {
                 "task_id": task.task_id,
                 "proposed_price": price,
                 "estimated_duration": duration,
             }
-        logger.info(f"[Decide] Policy skipped Task #{task.task_id}")
+        
+        # Log skip decision (optional, less verbose)
+        logger.debug(f"[Decide] Policy skipped Task #{task.task_id}")
         return None
 
     def sign_and_submit_bid(self, decision: dict) -> Optional[str]:
@@ -307,15 +322,30 @@ class AutonomousAgent:
             task_id: Task that passed verification
             reward_wei: Task reward amount
         """
-        self.agent_state.reputation.completed_tasks += 1
+        old_score = self.agent_state.reputation.score
+        old_completed = self.agent_state.reputation.completed_tasks
+        old_failed = self.agent_state.reputation.failed_tasks
         
-        # Improve reputation score (capped at 100)
+        # Update reputation
+        self.agent_state.reputation.completed_tasks += 1
         score_increase = 2
         self.agent_state.reputation.score = min(100, self.agent_state.reputation.score + score_increase)
         
-        logger.info(f"[Reputation] Task #{task_id} passed:")
-        logger.info(f"  Completed tasks: {self.agent_state.reputation.completed_tasks}")
-        logger.info(f"  Reputation score: {self.agent_state.reputation.score}")
+        # Use standardized logging
+        log_reputation_change(
+            agent_name=self.agent_state.name,
+            worker_address=self.agent_state.wallet_address,
+            task_id=task_id,
+            change_type="Task Pass",
+            old_score=old_score,
+            new_score=self.agent_state.reputation.score,
+            old_completed=old_completed,
+            new_completed=self.agent_state.reputation.completed_tasks,
+            old_failed=old_failed,
+            new_failed=self.agent_state.reputation.failed_tasks,
+            stake_change_wei=0,
+            reason="Task completed successfully and verified"
+        )
 
     def _handle_task_fail(self, task_id: int, reward_wei: int) -> None:
         """
@@ -325,9 +355,13 @@ class AutonomousAgent:
             task_id: Task that failed verification
             reward_wei: Task reward amount (used to calculate slash)
         """
-        self.agent_state.reputation.failed_tasks += 1
+        old_score = self.agent_state.reputation.score
+        old_completed = self.agent_state.reputation.completed_tasks
+        old_failed = self.agent_state.reputation.failed_tasks
+        old_stake = self.agent_state.reputation.simulated_stake_wei
         
-        # Penalize reputation score (floored at 0)
+        # Update reputation
+        self.agent_state.reputation.failed_tasks += 1
         score_decrease = 10
         self.agent_state.reputation.score = max(0, self.agent_state.reputation.score - score_decrease)
         
@@ -335,11 +369,21 @@ class AutonomousAgent:
         slash_amount = min(self.agent_state.reputation.simulated_stake_wei, reward_wei // 10)
         self.agent_state.reputation.simulated_stake_wei -= slash_amount
         
-        logger.info(f"[Reputation] Task #{task_id} failed:")
-        logger.info(f"  Failed tasks: {self.agent_state.reputation.failed_tasks}")
-        logger.info(f"  Reputation score: {self.agent_state.reputation.score}")
-        logger.info(f"  Simulated stake slashed: {slash_amount} wei")
-        logger.info(f"  Remaining stake: {self.agent_state.reputation.simulated_stake_wei} wei")
+        # Use standardized logging
+        log_reputation_change(
+            agent_name=self.agent_state.name,
+            worker_address=self.agent_state.wallet_address,
+            task_id=task_id,
+            change_type="Task Fail",
+            old_score=old_score,
+            new_score=self.agent_state.reputation.score,
+            old_completed=old_completed,
+            new_completed=self.agent_state.reputation.completed_tasks,
+            old_failed=old_failed,
+            new_failed=self.agent_state.reputation.failed_tasks,
+            stake_change_wei=-slash_amount,
+            reason="Task failed verification, reputation penalized and stake slashed"
+        )
 
     def run_forever(self, interval_seconds: int = 15) -> None:
         """Continuously loop agent lifecycle."""
