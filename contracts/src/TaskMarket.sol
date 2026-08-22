@@ -283,6 +283,74 @@ contract TaskMarket is ITaskMarket {
     }
 
     // ─────────────────────────────────────────────
+    // Expiry (P1.4) — anyone can expire after deadline
+    // ─────────────────────────────────────────────
+
+    function expireTask(uint256 taskId) external override {
+        Task storage task = _tasks[taskId];
+        require(task.creator != address(0), "Task does not exist");
+        require(block.timestamp > task.deadline, "Task deadline not passed");
+        require(
+            task.status == TaskStatus.Open ||
+            task.status == TaskStatus.Assigned ||
+            task.status == TaskStatus.Submitted,
+            "Task cannot be expired"
+        );
+
+        // Remember original status before marking expired
+        TaskStatus originalStatus = task.status;
+
+        // Effects: mark as expired
+        task.status = TaskStatus.Expired;
+        uint256 creatorRefund = task.reward;
+        task.reward = 0;
+
+        uint256 totalStakesRefunded = 0;
+
+        // Interactions: refund stakes based on original status
+        if (originalStatus == TaskStatus.Open) {
+            // OPEN: refund all bid stakes (none have been refunded yet)
+            uint256[] storage bids = _taskBids[taskId];
+            uint256 len = bids.length;
+            for (uint256 i = 0; i < len; i++) {
+                uint256 bidId = bids[i];
+                if (_stakeRefunded[bidId]) continue;
+
+                Bid storage bid = _bids[bidId];
+                uint256 refundAmt = bid.stake;
+                if (refundAmt == 0) continue;
+
+                _stakeRefunded[bidId] = true;
+                totalStakesRefunded += refundAmt;
+
+                (bool ok, ) = payable(bid.bidder).call{value: refundAmt}("");
+                require(ok, "Stake refund failed");
+            }
+        } else {
+            // ASSIGNED or SUBMITTED: refund selected worker's stake only
+            // (non-selected stakes already refunded by selectWorker)
+            Bid storage acceptedBid = _bids[task.acceptedBidId];
+            uint256 selectedStake = acceptedBid.stake;
+            
+            if (selectedStake > 0 && !_stakeRefunded[task.acceptedBidId]) {
+                _stakeRefunded[task.acceptedBidId] = true;
+                totalStakesRefunded = selectedStake;
+
+                (bool ok, ) = payable(task.selectedWorker).call{value: selectedStake}("");
+                require(ok, "Selected stake refund failed");
+            }
+        }
+
+        // Refund task reward to creator
+        if (creatorRefund > 0) {
+            (bool success, ) = payable(task.creator).call{value: creatorRefund}("");
+            require(success, "Creator refund failed");
+        }
+
+        emit TaskExpired(taskId, creatorRefund, totalStakesRefunded);
+    }
+
+    // ─────────────────────────────────────────────
     // View helpers
     // ─────────────────────────────────────────────
 

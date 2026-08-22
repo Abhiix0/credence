@@ -1628,4 +1628,527 @@ contract TaskMarketTest is Test {
         _compPhase3_settleTask1Pass(task1);
         _compPhase4_settleTask2Fail(task2);
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // P1.4 — EXPIRY TESTS
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ─────────────────────────────────────────────
+    // 21. BASIC EXPIRY FUNCTIONALITY
+    // ─────────────────────────────────────────────
+
+    /// @dev Open task can be expired after deadline
+    function testExpiry_openTaskCanExpire() public {
+        uint256 taskId = _createTask();
+        
+        // Warp past deadline
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        uint256 buyerBalBefore = buyer.balance;
+        
+        // Anyone can expire
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        ITaskMarket.Task memory task = market.getTask(taskId);
+        assertEq(uint8(task.status), uint8(ITaskMarket.TaskStatus.Expired));
+        assertEq(task.reward, 0);
+        
+        // Creator receives reward back
+        assertEq(buyer.balance, buyerBalBefore + REWARD, "creator receives reward refund");
+        assertEq(address(market).balance, 0, "contract balance is zero");
+    }
+
+    /// @dev Open task with multiple staked bids refunds all stakes
+    function testExpiry_openTaskWithMultipleBids_refundsAllStakes() public {
+        uint256 taskId = _createTask();
+        
+        uint256 stake1 = 0.15 ether;
+        uint256 stake2 = 0.25 ether;
+        uint256 stake3 = 0.1 ether;
+        
+        _submitBidWith(taskId, worker, REWARD, stake1);
+        _submitBidWith(taskId, worker2, REWARD, stake2);
+        
+        address worker3 = makeAddr("worker3");
+        vm.deal(worker3, 10 ether);
+        _submitBidWith(taskId, worker3, REWARD, stake3);
+        
+        uint256 w1BalBefore = worker.balance;
+        uint256 w2BalBefore = worker2.balance;
+        uint256 w3BalBefore = worker3.balance;
+        uint256 buyerBalBefore = buyer.balance;
+        
+        // Warp past deadline
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        // All bidders receive stakes back
+        assertEq(worker.balance, w1BalBefore + stake1, "worker1 stake refunded");
+        assertEq(worker2.balance, w2BalBefore + stake2, "worker2 stake refunded");
+        assertEq(worker3.balance, w3BalBefore + stake3, "worker3 stake refunded");
+        
+        // Creator receives reward back
+        assertEq(buyer.balance, buyerBalBefore + REWARD, "creator reward refunded");
+        
+        // All funds accounted for
+        assertEq(address(market).balance, 0, "contract balance is zero");
+    }
+
+    /// @dev Assigned task can be expired
+    function testExpiry_assignedTaskCanExpire() public {
+        (uint256 taskId, uint256 bidId) = _assignTask();
+        
+        // Warp past deadline
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        uint256 workerBalBefore = worker.balance;
+        uint256 buyerBalBefore = buyer.balance;
+        
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        ITaskMarket.Task memory task = market.getTask(taskId);
+        assertEq(uint8(task.status), uint8(ITaskMarket.TaskStatus.Expired));
+        
+        // Worker receives stake back
+        assertEq(worker.balance, workerBalBefore + STAKE, "worker stake refunded");
+        
+        // Creator receives reward back
+        assertEq(buyer.balance, buyerBalBefore + REWARD, "creator reward refunded");
+        
+        // All funds accounted for
+        assertEq(address(market).balance, 0, "contract balance is zero");
+    }
+
+    /// @dev Submitted task can be expired
+    function testExpiry_submittedTaskCanExpire() public {
+        (uint256 taskId, ) = _assignTask();
+        _submitResult(taskId);
+        
+        // Warp past deadline
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        uint256 workerBalBefore = worker.balance;
+        uint256 buyerBalBefore = buyer.balance;
+        
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        ITaskMarket.Task memory task = market.getTask(taskId);
+        assertEq(uint8(task.status), uint8(ITaskMarket.TaskStatus.Expired));
+        
+        // Worker receives stake back
+        assertEq(worker.balance, workerBalBefore + STAKE, "worker stake refunded");
+        
+        // Creator receives reward back
+        assertEq(buyer.balance, buyerBalBefore + REWARD, "creator reward refunded");
+        
+        // All funds accounted for
+        assertEq(address(market).balance, 0, "contract balance is zero");
+    }
+
+    // ─────────────────────────────────────────────
+    // 22. EXPIRY CONSTRAINTS
+    // ─────────────────────────────────────────────
+
+    /// @dev Cannot expire before deadline
+    function testExpiry_cannotExpireBeforeDeadline() public {
+        uint256 taskId = _createTask();
+        
+        vm.prank(stranger);
+        vm.expectRevert("Task deadline not passed");
+        market.expireTask(taskId);
+    }
+
+    /// @dev Cannot expire at exact deadline (must be strictly after)
+    function testExpiry_cannotExpireAtDeadline() public {
+        uint256 deadline = block.timestamp + HOUR;
+        vm.prank(buyer);
+        uint256 taskId = market.createTask{value: REWARD}(
+            "ipfs://spec",
+            "data-analysis",
+            deadline
+        );
+        
+        // Warp to exact deadline
+        vm.warp(deadline);
+        
+        vm.prank(stranger);
+        vm.expectRevert("Task deadline not passed");
+        market.expireTask(taskId);
+    }
+
+    /// @dev Anyone can expire
+    function testExpiry_anyoneCanExpire() public {
+        uint256 taskId = _createTask();
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        // Stranger expires
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        ITaskMarket.Task memory task = market.getTask(taskId);
+        assertEq(uint8(task.status), uint8(ITaskMarket.TaskStatus.Expired));
+    }
+
+    /// @dev Worker can expire
+    function testExpiry_workerCanExpire() public {
+        uint256 taskId = _createTask();
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        vm.prank(worker);
+        market.expireTask(taskId);
+        
+        ITaskMarket.Task memory task = market.getTask(taskId);
+        assertEq(uint8(task.status), uint8(ITaskMarket.TaskStatus.Expired));
+    }
+
+    /// @dev Creator can expire
+    function testExpiry_creatorCanExpire() public {
+        uint256 taskId = _createTask();
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        vm.prank(buyer);
+        market.expireTask(taskId);
+        
+        ITaskMarket.Task memory task = market.getTask(taskId);
+        assertEq(uint8(task.status), uint8(ITaskMarket.TaskStatus.Expired));
+    }
+
+    /// @dev Cannot expire twice
+    function testExpiry_cannotExpireTwice() public {
+        uint256 taskId = _createTask();
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        // Attempt to expire again
+        vm.prank(stranger);
+        vm.expectRevert("Task cannot be expired");
+        market.expireTask(taskId);
+    }
+
+    /// @dev Cannot expire cancelled task
+    function testExpiry_cannotExpireCancelledTask() public {
+        uint256 taskId = _createTask();
+        
+        vm.prank(buyer);
+        market.cancelTask(taskId);
+        
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        vm.prank(stranger);
+        vm.expectRevert("Task cannot be expired");
+        market.expireTask(taskId);
+    }
+
+    /// @dev Cannot expire verified (pass) task
+    function testExpiry_cannotExpireVerifiedPassTask() public {
+        _attachRegistryAndRegisterWorker();
+        (uint256 taskId, ) = _assignTask();
+        _submitResult(taskId);
+        
+        vm.prank(buyer);
+        market.verifyResult(taskId, true);
+        
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        vm.prank(stranger);
+        vm.expectRevert("Task cannot be expired");
+        market.expireTask(taskId);
+    }
+
+    /// @dev Cannot expire verified (fail) task
+    function testExpiry_cannotExpireVerifiedFailTask() public {
+        _attachRegistryAndRegisterWorker();
+        (uint256 taskId, ) = _assignTask();
+        _submitResult(taskId);
+        
+        vm.prank(buyer);
+        market.verifyResult(taskId, false);
+        
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        vm.prank(stranger);
+        vm.expectRevert("Task cannot be expired");
+        market.expireTask(taskId);
+    }
+
+    /// @dev Cannot expire nonexistent task
+    function testExpiry_cannotExpireNonexistentTask() public {
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        vm.prank(stranger);
+        vm.expectRevert("Task does not exist");
+        market.expireTask(9999);
+    }
+
+    // ─────────────────────────────────────────────
+    // 23. EXPIRY STAKE ACCOUNTING
+    // ─────────────────────────────────────────────
+
+    /// @dev Selected stake refunded exactly once (not at selectWorker and expiry)
+    function testExpiry_selectedStakeRefundedExactlyOnce() public {
+        uint256 taskId = _createTask();
+        _submitBidWith(taskId, worker, REWARD, STAKE);
+        _submitBidWith(taskId, worker2, REWARD, 0.2 ether);
+        
+        // Select worker - worker2's stake refunded at selection
+        uint256 w2BalAfterBid = worker2.balance;
+        vm.prank(buyer);
+        market.selectWorker(taskId, 1);  // bidId 1 = worker's bid
+        
+        // worker2 refunded at selection
+        assertEq(worker2.balance, w2BalAfterBid + 0.2 ether, "worker2 refunded at selection");
+        
+        uint256 workerBalBefore = worker.balance;
+        
+        // Expire task
+        vm.warp(block.timestamp + HOUR + 1);
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        // Worker's stake refunded exactly once (at expiry)
+        assertEq(worker.balance, workerBalBefore + STAKE, "worker stake refunded once at expiry");
+    }
+
+    /// @dev Non-selected stakes not double-refunded on expiry
+    function testExpiry_nonSelectedStakesNotDoubleRefunded() public {
+        uint256 taskId = _createTask();
+        _submitBidWith(taskId, worker, REWARD, STAKE);
+        _submitBidWith(taskId, worker2, REWARD, 0.2 ether);
+        
+        uint256 w2BalAfterBid = worker2.balance;
+        
+        // Select worker - worker2's stake refunded
+        vm.prank(buyer);
+        market.selectWorker(taskId, 1);
+        
+        assertEq(worker2.balance, w2BalAfterBid + 0.2 ether, "worker2 refunded at selection");
+        
+        uint256 w2BalAfterSelection = worker2.balance;
+        
+        // Expire task
+        vm.warp(block.timestamp + HOUR + 1);
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        // worker2's balance unchanged (not double-refunded)
+        assertEq(worker2.balance, w2BalAfterSelection, "worker2 not double-refunded");
+    }
+
+    /// @dev Contract accounting after expiry
+    function testExpiry_contractAccountingAfterExpiry() public {
+        uint256 taskId = _createTask();
+        _submitBid(taskId);
+        
+        vm.prank(buyer);
+        market.selectWorker(taskId, 1);
+        
+        // Contract holds: REWARD + STAKE
+        assertEq(address(market).balance, REWARD + STAKE);
+        
+        vm.warp(block.timestamp + HOUR + 1);
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        // All funds disbursed
+        assertEq(address(market).balance, 0, "contract balance zero after expiry");
+    }
+
+    // ─────────────────────────────────────────────
+    // 24. EXPIRY WITH MULTIPLE TASKS
+    // ─────────────────────────────────────────────
+
+    /// @dev Multiple simultaneous tasks remain isolated during expiry
+    function testExpiry_multipleTasksRemainIsolated() public {
+        // Task A: will expire
+        vm.prank(buyer);
+        uint256 taskIdA = market.createTask{value: 1 ether}(
+            "ipfs://A", "cap", block.timestamp + HOUR
+        );
+        _submitBidWith(taskIdA, worker, 1 ether, 0.1 ether);
+        
+        // Task B: will be settled normally
+        vm.prank(buyer);
+        uint256 taskIdB = market.createTask{value: 2 ether}(
+            "ipfs://B", "cap", block.timestamp + 2 * HOUR
+        );
+        uint256 bidIdB = _submitBidWith(taskIdB, worker2, 2 ether, 0.2 ether);
+        
+        vm.prank(buyer);
+        market.selectWorker(taskIdB, bidIdB);
+        
+        // Contract holds: 1 + 0.1 + 2 + 0.2 = 3.3 ether
+        assertEq(address(market).balance, 3.3 ether);
+        
+        // Expire Task A
+        vm.warp(block.timestamp + HOUR + 1);
+        vm.prank(stranger);
+        market.expireTask(taskIdA);
+        
+        // Task A funds disbursed (1 + 0.1 = 1.1 ether)
+        // Task B funds remain (2 + 0.2 = 2.2 ether)
+        assertEq(address(market).balance, 2.2 ether, "Task B funds untouched");
+        
+        // Task B can still be completed normally
+        vm.prank(worker2);
+        market.submitResult(taskIdB, "ipfs://result", bytes32(uint256(1)));
+        
+        vm.prank(buyer);
+        market.verifyResult(taskIdB, true);
+        
+        // All funds accounted for
+        assertEq(address(market).balance, 0, "all funds accounted for");
+    }
+
+    /// @dev Cannot expire one task and affect another
+    function testExpiry_cannotAffectOtherTasks() public {
+        // Create two expired tasks
+        vm.prank(buyer);
+        uint256 task1 = market.createTask{value: 1 ether}(
+            "ipfs://1", "cap", block.timestamp + HOUR
+        );
+        
+        vm.prank(buyer);
+        uint256 task2 = market.createTask{value: 2 ether}(
+            "ipfs://2", "cap", block.timestamp + HOUR
+        );
+        
+        _submitBidWith(task1, worker, 1 ether, 0.1 ether);
+        _submitBidWith(task2, worker2, 2 ether, 0.2 ether);
+        
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        // Expire task1
+        vm.prank(stranger);
+        market.expireTask(task1);
+        
+        ITaskMarket.Task memory t1 = market.getTask(task1);
+        ITaskMarket.Task memory t2 = market.getTask(task2);
+        
+        assertEq(uint8(t1.status), uint8(ITaskMarket.TaskStatus.Expired));
+        assertEq(uint8(t2.status), uint8(ITaskMarket.TaskStatus.Open), "task2 still open");
+        
+        // Task2 can still be expired separately
+        vm.prank(stranger);
+        market.expireTask(task2);
+        
+        t2 = market.getTask(task2);
+        assertEq(uint8(t2.status), uint8(ITaskMarket.TaskStatus.Expired));
+        
+        assertEq(address(market).balance, 0, "all funds accounted for");
+    }
+
+    /// @dev Expire assigned task with non-selected bids already refunded
+    function testExpiry_assignedTaskNonSelectedAlreadyRefunded() public {
+        uint256 taskId = _createTask();
+        _submitBidWith(taskId, worker, REWARD, 0.15 ether);
+        _submitBidWith(taskId, worker2, REWARD, 0.25 ether);
+        
+        address worker3 = makeAddr("worker3");
+        vm.deal(worker3, 10 ether);
+        _submitBidWith(taskId, worker3, REWARD, 0.1 ether);
+        
+        // Select worker1 - others refunded
+        uint256 w2BalAfterSelection = worker2.balance;
+        uint256 w3BalAfterSelection = worker3.balance;
+        
+        vm.prank(buyer);
+        market.selectWorker(taskId, 1);
+        
+        assertEq(worker2.balance, w2BalAfterSelection + 0.25 ether);
+        assertEq(worker3.balance, w3BalAfterSelection + 0.1 ether);
+        
+        // Expire task
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        uint256 workerBalBefore = worker.balance;
+        uint256 w2BalBefore = worker2.balance;
+        uint256 w3BalBefore = worker3.balance;
+        
+        vm.prank(stranger);
+        market.expireTask(taskId);
+        
+        // Only selected worker receives stake at expiry
+        assertEq(worker.balance, workerBalBefore + 0.15 ether, "selected worker refunded");
+        
+        // Non-selected workers not refunded again
+        assertEq(worker2.balance, w2BalBefore, "worker2 not double-refunded");
+        assertEq(worker3.balance, w3BalBefore, "worker3 not double-refunded");
+        
+        assertEq(address(market).balance, 0, "all funds accounted for");
+    }
+
+    /// @dev Comprehensive expiry flow with multiple scenarios
+    function testExpiry_comprehensiveFlow() public {
+        // Task 1: Open, will expire
+        vm.prank(buyer);
+        uint256 task1 = market.createTask{value: 1 ether}(
+            "ipfs://1", "cap", block.timestamp + HOUR
+        );
+        _submitBidWith(task1, worker, 0.8 ether, 0.1 ether);
+        _submitBidWith(task1, worker2, 0.9 ether, 0.15 ether);
+        
+        // Task 2: Assigned, will expire
+        vm.prank(buyer);
+        uint256 task2 = market.createTask{value: 2 ether}(
+            "ipfs://2", "cap", block.timestamp + HOUR
+        );
+        uint256 bid2 = _submitBidWith(task2, worker, 2 ether, 0.2 ether);
+        vm.prank(buyer);
+        market.selectWorker(task2, bid2);
+        
+        // Task 3: Cancelled (cannot expire)
+        vm.prank(buyer);
+        uint256 task3 = market.createTask{value: 1.5 ether}(
+            "ipfs://3", "cap", block.timestamp + HOUR
+        );
+        vm.prank(buyer);
+        market.cancelTask(task3);
+        
+        // Initial balances
+        uint256 buyerBalBefore = buyer.balance;
+        uint256 workerBalBefore = worker.balance;
+        uint256 worker2BalBefore = worker2.balance;
+        
+        // Warp past deadline
+        vm.warp(block.timestamp + HOUR + 1);
+        
+        // Expire task1 (open with 2 bids)
+        vm.prank(stranger);
+        market.expireTask(task1);
+        
+        // buyer: +1 ether reward
+        // worker: +0.1 ether stake
+        // worker2: +0.15 ether stake
+        assertEq(buyer.balance, buyerBalBefore + 1 ether, "task1 reward refunded");
+        assertEq(worker.balance, workerBalBefore + 0.1 ether, "task1 worker stake refunded");
+        assertEq(worker2.balance, worker2BalBefore + 0.15 ether, "task1 worker2 stake refunded");
+        
+        // Update balances
+        buyerBalBefore = buyer.balance;
+        workerBalBefore = worker.balance;
+        
+        // Expire task2 (assigned)
+        vm.prank(stranger);
+        market.expireTask(task2);
+        
+        // buyer: +2 ether reward
+        // worker: +0.2 ether stake
+        assertEq(buyer.balance, buyerBalBefore + 2 ether, "task2 reward refunded");
+        assertEq(worker.balance, workerBalBefore + 0.2 ether, "task2 worker stake refunded");
+        
+        // Task3 cannot be expired
+        vm.prank(stranger);
+        vm.expectRevert("Task cannot be expired");
+        market.expireTask(task3);
+        
+        // All funds accounted for
+        assertEq(address(market).balance, 0, "all funds properly disbursed");
+    }
 }
