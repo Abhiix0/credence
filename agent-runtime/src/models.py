@@ -19,6 +19,7 @@ class Reputation(BaseModel):
     completed_tasks: int = 0
     failed_tasks: int = 0
     last_updated: int = 0
+    simulated_stake_wei: int = 0  # Local stake simulation until Vault contract exists
 
 
 class Agent(BaseModel):

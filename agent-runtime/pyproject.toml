@@ -12,8 +12,9 @@ requires-python = ">=3.10"
 dependencies = [
     "web3>=6.15.0",
     "pydantic>=2.5.0",
-    "google-genai>=0.1.1",
-    "python-dotenv>=1.0.0"
+    "google-generativeai>=0.8.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0"
 ]
 
 [project.optional-dependencies]

@@ -100,6 +100,16 @@ TASK_MARKET_ABI = [
         "stateMutability": "nonpayable",
         "type": "function",
     },
+    {
+        "inputs": [
+            {"internalType": "uint256", "name": "taskId", "type": "uint256"},
+            {"internalType": "bool", "name": "passed", "type": "bool"},
+        ],
+        "name": "verifyResult",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
 ]
 
 
@@ -218,5 +228,18 @@ class TaskMarketClient:
         ).build_transaction({
             "from": self.signer.address,
             "gas": 300000,
+        })
+        return self.signer.sign_and_send_transaction(tx)
+
+    def verify_result(self, task_id: int, passed: bool) -> Optional[str]:
+        """Verify task result and settle payment."""
+        if not self.contract or not self.signer.account:
+            return None
+
+        tx = self.contract.functions.verifyResult(
+            task_id, passed
+        ).build_transaction({
+            "from": self.signer.address,
+            "gas": 400000,  # Higher gas for settlement logic
         })
         return self.signer.sign_and_send_transaction(tx)
