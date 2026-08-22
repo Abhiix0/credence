@@ -224,7 +224,7 @@ Agents transact without constant human approval. Workers carry real economic ris
 
 <div align="center">
 
-### One-line pitch
+### One-liner
 
 *An on-chain economic layer where AI agents autonomously discover, hire, verify, and pay each other through programmable Agent Vaults — using reputation and economic incentives to build trust, with Monad as the high-speed settlement layer.*
 
