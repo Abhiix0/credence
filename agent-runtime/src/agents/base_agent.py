@@ -10,6 +10,7 @@ from ..policies import (
     ConservativePolicy,
     AggressivePolicy,
     ReputationPolicy,
+    BalancedPolicy,
 )
 from ..wallet import WalletSigner
 from ..market import TaskMarketClient
@@ -24,6 +25,7 @@ POLICY_REGISTRY: Dict[str, BasePolicy] = {
     "ConservativePolicy": ConservativePolicy(),
     "AggressivePolicy": AggressivePolicy(),
     "ReputationPolicy": ReputationPolicy(),
+    "BalancedPolicy": BalancedPolicy(),
 }
 
 
