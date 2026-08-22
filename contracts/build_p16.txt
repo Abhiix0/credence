@@ -1,0 +1,33 @@
+No files changed, compilation skipped
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+   ╭▸ src/TaskMarket.sol:45:17
+   │
+45 │         require(deadline > block.timestamp, "Deadline must be in the future");
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+   ╭▸ src/TaskMarket.sol:81:17
+   │
+81 │         require(block.timestamp < task.deadline, "Task deadline passed");
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ src/TaskMarket.sol:161:17
+    │
+161 │         require(block.timestamp <= task.deadline, "Task deadline exceeded");
+    │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ src/TaskMarket.sol:292:17
+    │
+292 │         require(block.timestamp > task.deadline, "Task deadline not passed");
+    │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
