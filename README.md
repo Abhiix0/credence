@@ -1,177 +1,236 @@
-# Autonomous Agent Economy
+<div align="center">
 
-An on-chain economy on Monad testnet where autonomous AI agents discover tasks, bid for work, execute tasks, verify results, and exchange value securely through smart contract escrow.
+# Credence
+
+### Autonomous Agent Economy — an on-chain economy where AI agents discover, hire, verify, and pay each other, inside spending limits a smart contract actually enforces.
+
+[![Monad](https://img.shields.io/badge/Built%20on-Monad-6E54FF?style=for-the-badge)](https://monad.xyz/)
+[![Solidity](https://img.shields.io/badge/Solidity-Smart%20Contracts-363636?style=flat-square&logo=solidity)](https://soliditylang.org/)
+[![Web3](https://img.shields.io/badge/Web3-On--Chain-111111?style=flat-square)](https://ethereum.org/en/web3/)
+[![Status](https://img.shields.io/badge/Status-Hackathon%20MVP-00C853?style=flat-square)](#)
+
+**Monad Blitz Hyderabad** · 3 builders · ~6 hour build
+
+</div>
+
+<br>
+
+> **Humans define the rules. Agents make the decisions. Smart contracts enforce the boundaries. Monad settles the economy.**
+
+<br>
+
+## The Problem
+
+AI agents can reason, use tools, and complete tasks — but they still live inside an economy built for humans. Today, an agent can't:
+
+- discover other agents that offer a capability it needs
+- evaluate who to trust
+- put economic skin in the game
+- hire and pay another agent without a human approving it
+- build a reputation from what it's actually done
+
+And the flip side is worse: **you can't hand an autonomous agent your wallet and hope for the best.**
+
+## The Solution
+
+Give every agent an **Agent Vault** — a programmable wallet with hard spending limits a human sets and a smart contract enforces. The agent is free to *decide*; it is never free to *exceed*.
+
+```
+need a capability → discover workers → evaluate bids → hire → pay via Vault
+   → escrow → execute → verify → settle or slash → reputation updates → repeat
+```
+
+<br>
+
+## The Agent Vault — the core trust mechanism
+
+```
+Agent Vault
+├── Balance:            1.00 MON
+├── Max Task Budget:    0.05 MON
+├── Max Stake:          0.02 MON
+└── Allowed Operations: Create Task · Pay Worker · Stake
+```
+
+Every spend request runs through the same gate:
+
+| # | Check |
+|---|---|
+| 1 | Is the agent registered? |
+| 2 | Is this operation allowed? |
+| 3 | Is the task valid? |
+| 4 | Is the amount within the task budget? |
+| 5 | Is the amount within the agent's spending limit? |
+| 6 | Does the vault hold enough funds? |
+
+```diff
+- Agent requests:  0.10 MON
+- Vault limit:     0.05 MON
+- TRANSACTION REJECTED — exceeds Agent Spending Policy
+```
+
+This isn't a UI warning. It's enforced **on-chain** — the protocol limits the damage even if the agent's judgment is bad.
+
+<br>
+
+## Two Layers of Trust
+
+| | Protects | How |
+|---|---|---|
+| **Agent Vault** | The owner's funds | Spending limits + allowed ops, enforced by contract |
+| **Stake + Reputation** | The buyer, from bad workers | Workers post stake; failed work gets slashed |
+
+Performance directly changes opportunity — good agents earn more work, bad ones lose stake, reputation, and revenue.
+
+## Autonomous Worker Selection
+
+Buyers don't just take the lowest bid:
+
+```
+Worker Score = Reputation + Success Rate + Price Efficiency + Completion Speed + Stake
+```
+
+| Worker | Price | Reputation | Speed | Selected |
+|---|---|---|---|---|
+| A | 0.010 MON | 72 | 5s | |
+| **B** | 0.015 MON | **96** | 4s | Yes |
+| C | 0.008 MON | 54 | 3s | |
+
+A rational buyer pays a premium for reliability — **reputation is an economic asset**, not a vanity stat.
+
+<br>
+
+## Why Blockchain
+
+AI reasoning stays **off-chain**. The chain is the economic truth layer:
+
+`Identity → Vault → Spending Limits → Stake → Escrow → Verification → Settlement → Reputation`
+
+Smart contracts own ownership, balances, limits, escrow, settlement, slashing, and reputation — so agents transact without a human clicking "approve" on every step.
+
+## Why Monad
+
+```
+Humans:  occasional, large transactions
+Agents:  Agent → Agent → Agent → Agent → Agent  (fast, frequent, small)
+```
+
+An agent economy is transaction-heavy by nature — frequent micro-payments, rapid state changes, constant reputation updates. Monad's throughput is what makes this model *practical*, not just theoretical. It's part of the product thesis, not just the deploy target.
+
+<br>
+
+## Architecture
+
+```
+┌────────────────────────────┐
+│   React Frontend            │  Economy Dashboard
+└──────────────┬─────────────┘
+               ↓
+┌────────────────────────────┐
+│   Agent Runtime              │  Buyer · Worker · Verifier
+└──────────────┬─────────────┘
+               ↓
+┌────────────────────────────┐
+│   Agent Vault                │  Balance · Limits · Policy Enforcement
+└──────────────┬─────────────┘
+               ↓
+┌────────────────────────────┐
+│   Monad Network               │  Registry · Task Market · Escrow · Settlement
+└────────────────────────────┘
+```
+
+**Core rule:** the runtime decides *what* it wants to do. The Vault and contracts decide *what it's allowed to do*.
+
+## Agent Types
+
+| Agent | Role | Carries |
+|---|---|---|
+| **Buyer** | Needs a capability, picks a worker | Vault, balance, spending policy, budget |
+| **Worker** | Offers a capability, competes for tasks | Capabilities, price, stake, reputation |
+| **Verifier** | Judges the submitted work | Deterministic pass/fail (MVP) |
+
+<br>
+
+## The Demo, Act by Act
+
+| Act | What happens |
+|---|---|
+| **1 — Fund** | Agent Vaults are funded, the economy starts |
+| **2 — Operate** | Agents discover, bid, hire, execute, settle |
+| **3 — Trust** | Good agents gain reputation; `WORKER-07` submits bad work → stake slashed, reputation 91 → 82 |
+| **4 — Break the rules** | An agent tries to spend 0.10 MON against a 0.05 MON limit → **rejected on-chain** |
+| **5 — Continue** | The rest of the economy keeps running inside its bounds |
+
+> The rejected transaction is the whole point — it proves agent autonomy is bounded by the **protocol**, not a UI promise.
+
+<br>
+
+## MVP Scope
+
+<table>
+<tr>
+<td valign="top" width="50%">
+
+**In scope**
+- Agent registration
+- Vault creation & funding
+- Spending limits + task budgets
+- Reputation & stake
+- Task creation, bidding, assignment
+- Escrow, settlement, slashing
+- Buyer / Worker / Verifier runtime
+- Live economy dashboard + tx hashes
+
+</td>
+<td valign="top" width="50%">
+
+**Out of scope**
+- DAO governance / token launch
+- NFTs, custom chain, multi-chain
+- ZK proofs
+- Decentralized AI inference
+- Production identity / custody
+- Complex tokenomics
+- Negotiation protocols
+- Mobile app
+
+</td>
+</tr>
+</table>
+
+The Vault is deliberately a **minimal spending boundary**, not institutional custody.
+
+## Success Criteria
+
+- 10+ agents · 20+ task interactions
+- Multiple successful settlements & on-chain transactions
+- At least one slashing event with a visible reputation drop
+- Visible shift in buyer behavior toward reliable workers
+- At least one vault-policy **rejection**, visible in the UI
+
+<br>
+
+## What Makes This Different
+
+Most AI + Web3 projects are "ChatGPT with a crypto wallet." This is different:
+
+- The **agent** decides what it wants to do.
+- The **protocol** decides what it's allowed to do.
+- **Reputation** decides what happens next.
+
+Agents transact without constant human approval. Workers carry real economic risk. Bad behavior has real financial consequences. No agent ever holds unrestricted funds.
+
+<br>
+
+<div align="center">
+
+### One-line pitch
+
+*An on-chain economic layer where AI agents autonomously discover, hire, verify, and pay each other through programmable Agent Vaults — using reputation and economic incentives to build trust, with Monad as the high-speed settlement layer.*
 
 ---
 
-## 🌟 Project Purpose
+**Built for Monad Blitz Hyderabad**
+*An experiment in what happens when AI agents become economic participants.*
 
-The **Autonomous Agent Economy** enables decentralized coordination and economic interactions among autonomous AI agents without central intermediaries. Agents operate sovereign wallets, evaluate task opportunities based on strategic policies, execute computational or analytical tasks with AI reasoning, and receive escrowed settlements upon verification while dynamically building on-chain reputation.
-
----
-
-## 🏛️ System Architecture
-
-```
-                                  ┌───────────────────────────────┐
-                                  │      Frontend Dashboard       │
-                                  │  (Next.js + TypeScript/viem)  │
-                                  └───────────────┬───────────────┘
-                                                  │
-                                   Observes / Submits Tasks & Bids
-                                                  │
-                                                  ▼
-   ┌──────────────────────────────────────────────────────────────────────────────┐
-   │                            Monad Smart Contracts                             │
-   │                                                                              │
-   │   ┌────────────────────┐   ┌────────────────────┐   ┌────────────────────┐   │
-   │   │   AgentRegistry    │   │     TaskMarket     │   │     Reputation     │   │
-   │   │  (ID & Capability) │   │ (Escrow & Bidding) │   │   (Score & Log)    │   │
-   │   └────────────────────┘   └────────────────────┘   └────────────────────┘   │
-   └──────────────────────────────────────▲───────────────────────────────────────┘
-                                          │
-                        Web3.py RPC Transactions & Event Streams
-                                          │
-                                  ┌───────┴───────────────────────┐
-                                  │     Agent Python Runtime      │
-                                  │ (Observe-Decide-Execute Loop) │
-                                  │  + Gemini AI Reasoning Engine │
-                                  └───────────────────────────────┘
-```
-
----
-
-## 🔄 Core Economic Flow
-
-1. **Agent Needs Work / Task Created**: A buyer (human or agent) posts a task specification and funds to escrow on `TaskMarket`.
-2. **Workers Discover Task**: Autonomous agents poll contract events and index available tasks.
-3. **Workers Submit Bids**: Agents run evaluation policies against their capabilities and balance to submit on-chain bids.
-4. **Buyer Selects Worker**: Buyer awards the task to a chosen bidder.
-5. **Payment Enters Escrow**: Funds lock in the contract pending execution verification.
-6. **Worker Executes**: Selected agent performs the task, calling Gemini API where reasoning is required.
-7. **Verifier Checks Result**: An automated verifier or buyer checks output against specifications.
-8. **Pass / Fail**: Verification result is emitted.
-9. **Settlement**: Escrowed payout is released to worker upon pass, or refunded upon failure.
-10. **Reputation Update**: Worker's on-chain score increases or decreases accordingly.
-11. **Agent Repeats**: Agent loops back into discovery mode.
-
----
-
-## 🤖 Core Agent Lifecycle Loop
-
-```
-Observe ──► Discover ──► Evaluate ──► Decide ──► Sign Tx ──► Execute ──► Submit Result ──► Repeat
-```
-
----
-
-## 📂 Repository Structure
-
-```
-autonomous-agent-economy/
-├── contracts/             # Solidity smart contracts & Foundry test suite
-│   ├── src/               # TaskMarket, AgentRegistry, Interfaces
-│   ├── test/              # Foundry unit and integration tests
-│   ├── script/            # Deployment scripts for Monad testnet
-│   ├── foundry.toml       # Foundry configuration
-│   └── README.md
-│
-├── agent-runtime/         # Python autonomous worker runtime
-│   ├── src/
-│   │   ├── models.py      # Shared conceptual data models
-│   │   ├── agents/        # Base agent and autonomous loop
-│   │   ├── policies/      # Conservative, Aggressive, Reputation policies
-│   │   ├── market/        # Task discovery & contract interaction
-│   │   ├── execution/     # Task executor & Gemini reasoning hooks
-│   │   └── wallet/        # Web3 signer & wallet management
-│   ├── tests/             # Pytest suite for agent logic
-│   ├── requirements.txt   # Minimal Python dependencies
-│   ├── .env.example
-│   └── README.md
-│
-├── frontend/              # Next.js web application
-│   ├── app/               # Next.js App Router (pages & layout)
-│   ├── components/        # UI components (TaskBoard, AgentCard, BidModal)
-│   ├── lib/               # Viem client, contract ABIs, shared types
-│   ├── hooks/             # Reactive hooks for contract state
-│   ├── package.json       # Minimal frontend dependencies
-│   ├── .env.example
-│   └── README.md
-│
-├── docs/                  # Architecture & protocol specifications
-│   ├── architecture.md    # High-level architecture & agent lifecycle
-│   ├── contracts.md       # Smart contract specification & state machine
-│   └── demo.md            # Hackathon demo walkthrough
-│
-├── scripts/               # Automation & environment bootstrap scripts
-│   ├── setup.sh           # One-command project dependencies setup
-│   ├── run_agent.sh       # Launch autonomous agent runtime
-│   └── deploy_contracts.sh# Deploy contracts to Monad testnet
-│
-├── .env.example           # Environment template (secrets omitted)
-├── .gitignore             # Global gitignore for node, python, foundry
-└── README.md              # Project overview (this file)
-```
-
----
-
-## 🔗 How the Three Components Communicate
-
-1. **Contracts (Single Source of Truth on Monad)**:
-   - Holds escrowed funds, task status, registered agent identities, and immutable reputation history.
-2. **Agent Runtime (Decentralized Workers via Python/Web3.py)**:
-   - Reads `TaskMarket` and `AgentRegistry` state via RPC.
-   - Signs transactions using local keys to register, place bids, and submit work proofs.
-   - Uses Gemini AI for problem solving and task execution.
-3. **Frontend (Human & Agent Dashboard via Next.js/Viem)**:
-   - Reads real-time market data directly from Monad RPC.
-   - Allows users to create tasks, inspect agent activity, watch live bids, and monitor settlements.
-
----
-
-## 🚀 Quickstart Development Setup
-
-### 1. Prerequisites
-- **Foundry** (`forge`, `cast`): [Install Foundry](https://getfoundry.sh)
-- **Python 3.10+**: `python3 --version`
-- **Node.js 18+** and `npm`
-
-### 2. Environment Setup
-Copy the environment template and fill in your keys:
-```bash
-cp .env.example .env
-```
-
-### 3. Bootstrap All Modules
-```bash
-chmod +x scripts/*.sh
-./scripts/setup.sh
-```
-
-### 4. Smart Contracts
-```bash
-cd contracts
-forge test
-forge script script/Deploy.s.sol --rpc-url https://testnet-rpc.monad.xyz --broadcast
-```
-
-### 5. Agent Runtime
-```bash
-cd agent-runtime
-source .venv/bin/activate
-python -m pytest
-python -m src.agents.base_agent
-```
-
-### 6. Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
----
-
-## 🔒 Security Notice
-
-**Never commit real private keys, API keys, or RPC credentials.** Always use `.env.example` templates and load secrets via local environment files.
+</div>

@@ -8,7 +8,8 @@ interface ITaskMarket {
         Submitted,
         VerifiedPass,
         VerifiedFail,
-        Cancelled
+        Cancelled,
+        Expired
     }
 
     struct Task {
@@ -33,6 +34,7 @@ interface ITaskMarket {
         uint256 estimatedDuration;
         uint256 timestamp;
         bool isAccepted;
+        uint256 stake;
     }
 
     event TaskCreated(
@@ -53,6 +55,8 @@ interface ITaskMarket {
     event ResultSubmitted(uint256 indexed taskId, address indexed worker, string resultUri, bytes32 resultHash);
     event TaskSettled(uint256 indexed taskId, address indexed recipient, uint256 amount, bool passed);
     event TaskCancelled(uint256 indexed taskId, address indexed creator, uint256 refundAmount);
+    event StakeSlashed(uint256 indexed taskId, uint256 indexed bidId, address indexed worker, uint256 amount);
+    event TaskExpired(uint256 indexed taskId, uint256 creatorRefund, uint256 totalStakesRefunded);
 
     function createTask(
         string calldata specificationUri,
@@ -64,10 +68,11 @@ interface ITaskMarket {
         uint256 taskId,
         uint256 proposedPrice,
         uint256 estimatedDuration
-    ) external returns (uint256);
+    ) external payable returns (uint256);
 
     function selectWorker(uint256 taskId, uint256 bidId) external;
     function submitResult(uint256 taskId, string calldata resultUri, bytes32 resultHash) external;
     function verifyResult(uint256 taskId, bool passed) external;
     function cancelTask(uint256 taskId) external;
+    function expireTask(uint256 taskId) external;
 }

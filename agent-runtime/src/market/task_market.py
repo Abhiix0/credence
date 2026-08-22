@@ -41,13 +41,24 @@ TASK_MARKET_ABI = [
     },
     {
         "inputs": [
+            {"internalType": "string", "name": "specificationUri", "type": "string"},
+            {"internalType": "string", "name": "requiredCapability", "type": "string"},
+            {"internalType": "uint256", "name": "deadline", "type": "uint256"},
+        ],
+        "name": "createTask",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "payable",
+        "type": "function",
+    },
+    {
+        "inputs": [
             {"internalType": "uint256", "name": "taskId", "type": "uint256"},
             {"internalType": "uint256", "name": "proposedPrice", "type": "uint256"},
             {"internalType": "uint256", "name": "estimatedDuration", "type": "uint256"},
         ],
         "name": "submitBid",
         "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-        "stateMutability": "nonpayable",
+        "stateMutability": "payable",
         "type": "function",
     },
     {
@@ -74,6 +85,7 @@ TASK_MARKET_ABI = [
                     {"internalType": "uint256", "name": "estimatedDuration", "type": "uint256"},
                     {"internalType": "uint256", "name": "timestamp", "type": "uint256"},
                     {"internalType": "bool", "name": "isAccepted", "type": "bool"},
+                    {"internalType": "uint256", "name": "stake", "type": "uint256"},
                 ],
                 "internalType": "struct ITaskMarket.Bid",
                 "name": "",
@@ -106,6 +118,20 @@ TASK_MARKET_ABI = [
             {"internalType": "bool", "name": "passed", "type": "bool"},
         ],
         "name": "verifyResult",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [{"internalType": "uint256", "name": "taskId", "type": "uint256"}],
+        "name": "expireTask",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [{"internalType": "uint256", "name": "taskId", "type": "uint256"}],
+        "name": "cancelTask",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",
@@ -157,8 +183,8 @@ class TaskMarketClient:
         except Exception:
             return []
 
-    def submit_bid(self, task_id: int, proposed_price: int, estimated_duration: int) -> Optional[str]:
-        """Submit bid to TaskMarket contract."""
+    def submit_bid(self, task_id: int, proposed_price: int, estimated_duration: int, stake_wei: int) -> Optional[str]:
+        """Submit bid to TaskMarket contract with stake."""
         if not self.contract or not self.signer.account:
             return None
 
@@ -166,6 +192,7 @@ class TaskMarketClient:
             task_id, proposed_price, estimated_duration
         ).build_transaction({
             "from": self.signer.address,
+            "value": stake_wei,  # Stake sent as msg.value
             "gas": 300000,
         })
         return self.signer.sign_and_send_transaction(tx)
@@ -198,6 +225,7 @@ class TaskMarketClient:
                 estimated_duration_sec=raw[4],
                 timestamp=raw[5],
                 is_accepted=raw[6],
+                stake_wei=raw[7],  # Include stake from contract
             )
         except Exception:
             return None
@@ -241,5 +269,45 @@ class TaskMarketClient:
         ).build_transaction({
             "from": self.signer.address,
             "gas": 400000,  # Higher gas for settlement logic
+        })
+        return self.signer.sign_and_send_transaction(tx)
+
+    def create_task(self, spec_uri: str, required_capability: str, deadline: int, reward_wei: int) -> Optional[str]:
+        """Create a new task with escrowed reward."""
+        if not self.contract or not self.signer.account:
+            return None
+
+        tx = self.contract.functions.createTask(
+            spec_uri, required_capability, deadline
+        ).build_transaction({
+            "from": self.signer.address,
+            "value": reward_wei,
+            "gas": 300000,
+        })
+        return self.signer.sign_and_send_transaction(tx)
+
+    def expire_task(self, task_id: int) -> Optional[str]:
+        """Expire a task after deadline, refunding all stakes and reward."""
+        if not self.contract or not self.signer.account:
+            return None
+
+        tx = self.contract.functions.expireTask(
+            task_id
+        ).build_transaction({
+            "from": self.signer.address,
+            "gas": 400000,
+        })
+        return self.signer.sign_and_send_transaction(tx)
+
+    def cancel_task(self, task_id: int) -> Optional[str]:
+        """Cancel an open task (creator only)."""
+        if not self.contract or not self.signer.account:
+            return None
+
+        tx = self.contract.functions.cancelTask(
+            task_id
+        ).build_transaction({
+            "from": self.signer.address,
+            "gas": 300000,
         })
         return self.signer.sign_and_send_transaction(tx)

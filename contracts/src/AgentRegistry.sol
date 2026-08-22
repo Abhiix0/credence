@@ -21,15 +21,17 @@ contract AgentRegistry is IAgentRegistry {
         require(!_agents[msg.sender].isRegistered, "Agent already registered");
         require(bytes(name).length > 0, "Name required");
 
-        _agents[msg.sender] = Agent({
-            wallet: msg.sender,
-            name: name,
-            capabilities: capabilities,
-            reputationScore: 100, // Initial baseline score
-            completedTasks: 0,
-            failedTasks: 0,
-            isRegistered: true
-        });
+        Agent storage agent = _agents[msg.sender];
+        agent.wallet = msg.sender;
+        agent.name = name;
+        agent.reputationScore = 100; // Initial baseline score
+        agent.completedTasks = 0;
+        agent.failedTasks = 0;
+        agent.isRegistered = true;
+
+        for (uint256 i = 0; i < capabilities.length; i++) {
+            agent.capabilities.push(capabilities[i]);
+        }
 
         _registeredAgentList.push(msg.sender);
         emit AgentRegistered(msg.sender, name, capabilities);
@@ -37,7 +39,10 @@ contract AgentRegistry is IAgentRegistry {
 
     function updateCapabilities(string[] calldata capabilities) external override {
         require(_agents[msg.sender].isRegistered, "Agent not registered");
-        _agents[msg.sender].capabilities = capabilities;
+        delete _agents[msg.sender].capabilities;
+        for (uint256 i = 0; i < capabilities.length; i++) {
+            _agents[msg.sender].capabilities.push(capabilities[i]);
+        }
         emit CapabilitiesUpdated(msg.sender, capabilities);
     }
 
