@@ -29,6 +29,7 @@ class Agent(BaseModel):
     capabilities: List[str] = Field(default_factory=list)
     reputation: Reputation
     policy_name: str = "ConservativePolicy"
+    role: str = "worker"  # "buyer" | "worker" | "verifier"
     is_active: bool = True
 
 
@@ -55,6 +56,7 @@ class Bid(BaseModel):
     proposed_price_wei: int
     estimated_duration_sec: int
     timestamp: int
+    stake_wei: int = 0  # Local field, contract's Bid struct doesn't have stake yet
     is_accepted: bool = False
 
 
