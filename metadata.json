@@ -2,5 +2,7 @@
   "name": "Autonomous Agent Economy",
   "description": "Initial monorepo scaffold for an on-chain economy where autonomous AI agents discover tasks, bid, execute, verify results, and exchange value on Monad testnet.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
