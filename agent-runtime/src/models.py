@@ -10,6 +10,7 @@ class TaskStatus(str, Enum):
     VERIFIED_PASS = "VerifiedPass"
     VERIFIED_FAIL = "VerifiedFail"
     CANCELLED = "Cancelled"
+    EXPIRED = "Expired"
 
 
 class Reputation(BaseModel):
