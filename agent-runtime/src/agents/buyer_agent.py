@@ -8,10 +8,11 @@ best worker based on price, reputation, speed, and risk factors.
 
 import logging
 import os
-from typing import Dict, List, Optional, Tuple
+import time
+from typing import Dict, List, Optional, Set, Tuple
 from dotenv import load_dotenv
 
-from ..models import Agent, Bid, Reputation, Task
+from ..models import Agent, Bid, Reputation, Task, TaskStatus
 from ..policies import BasePolicy, ConservativePolicy, AggressivePolicy, ReputationPolicy, BalancedPolicy
 from ..wallet import WalletSigner
 from ..market import TaskMarketClient, AgentRegistryClient
@@ -63,6 +64,13 @@ class BuyerAgent:
         self.market = TaskMarketClient(self.signer)
         self.registry = AgentRegistryClient(self.signer)
         
+        # Initialize verifier agent (for result verification)
+        try:
+            self.verifier = VerifierAgent()
+        except Exception as e:
+            logger.warning(f"Failed to initialize VerifierAgent: {e}")
+            self.verifier = None
+        
         # Initialize policy
         policy_key = policy_name or os.getenv("BUYER_POLICY", "ConservativePolicy")
         self.policy = BUYER_POLICY_REGISTRY.get(policy_key, ConservativePolicy())
@@ -71,6 +79,10 @@ class BuyerAgent:
         self.name = name or os.getenv("BUYER_NAME", "BuyerAgent-01")
         self.wallet_address = self.signer.address
         self.risk_tolerance = risk_tolerance or float(os.getenv("BUYER_RISK_TOLERANCE", "50.0"))
+        
+        # Task tracking for lightweight event polling
+        self._task_snapshots: Dict[int, TaskStatus] = {}  # task_id -> last_seen_status
+        self._processed_tasks: Set[int] = set()  # tasks we've already handled worker selection for
         
         logger.info(f"BuyerAgent initialized: {self.name} [{self.wallet_address}]")
         logger.info(f"Active Policy: {self.policy.name}")
@@ -417,6 +429,263 @@ class BuyerAgent:
         except Exception as e:
             logger.error(f"Error processing Task #{task_id}: {e}")
             return None
+
+    def discover_my_open_tasks(self) -> List[Task]:
+        """
+        Discover open tasks I created (as the buyer).
+        
+        Returns:
+            List of tasks created by me with status OPEN
+        """
+        if not self.market.contract:
+            return []
+        
+        try:
+            total = self.market.contract.functions.totalTasks().call()
+            my_open_tasks = []
+            
+            my_address = self.wallet_address.lower()
+            
+            for task_id in range(1, total + 1):
+                raw = self.market.contract.functions.getTask(task_id).call()
+                
+                # Status 0 = Open, check if I'm the creator
+                if raw[6] == 0 and raw[1].lower() == my_address:
+                    task = Task(
+                        task_id=raw[0],
+                        creator=raw[1],
+                        specification_uri=raw[2],
+                        required_capability=raw[3],
+                        reward_wei=raw[4],
+                        deadline=raw[5],
+                        status=TaskStatus.OPEN,
+                        selected_worker=None,
+                    )
+                    my_open_tasks.append(task)
+            
+            logger.info(f"[Discover My Open] Found {len(my_open_tasks)} open tasks I created")
+            return my_open_tasks
+            
+        except Exception as e:
+            logger.error(f"Error discovering my open tasks: {e}")
+            return []
+
+    def discover_my_submitted_tasks(self) -> List[Task]:
+        """
+        Discover tasks I created that have been submitted by workers.
+        
+        Returns:
+            List of tasks created by me with status SUBMITTED
+        """
+        if not self.market.contract:
+            return []
+        
+        try:
+            total = self.market.contract.functions.totalTasks().call()
+            my_submitted_tasks = []
+            
+            my_address = self.wallet_address.lower()
+            
+            for task_id in range(1, total + 1):
+                raw = self.market.contract.functions.getTask(task_id).call()
+                
+                # Status 2 = Submitted, check if I'm the creator
+                if raw[6] == 2 and raw[1].lower() == my_address:
+                    task = Task(
+                        task_id=raw[0],
+                        creator=raw[1],
+                        specification_uri=raw[2],
+                        required_capability=raw[3],
+                        reward_wei=raw[4],
+                        deadline=raw[5],
+                        status=TaskStatus.SUBMITTED,
+                        selected_worker=raw[7],
+                        accepted_bid_id=raw[8],
+                        result_uri=raw[9],
+                        result_hash=raw[10],
+                    )
+                    my_submitted_tasks.append(task)
+            
+            logger.info(f"[Discover My Submitted] Found {len(my_submitted_tasks)} submitted tasks I created")
+            return my_submitted_tasks
+            
+        except Exception as e:
+            logger.error(f"Error discovering my submitted tasks: {e}")
+            return []
+
+    def poll_task_status_changes(self) -> List[Tuple[Task, TaskStatus, TaskStatus]]:
+        """
+        Poll for task status changes using lightweight snapshot diff.
+        
+        Compares current task statuses against last-seen snapshots to detect transitions.
+        
+        Returns:
+            List of (task, old_status, new_status) tuples for changed tasks
+        """
+        if not self.market.contract:
+            return []
+        
+        try:
+            total = self.market.contract.functions.totalTasks().call()
+            changes = []
+            
+            my_address = self.wallet_address.lower()
+            
+            for task_id in range(1, total + 1):
+                raw = self.market.contract.functions.getTask(task_id).call()
+                
+                # Only track tasks I created
+                if raw[1].lower() != my_address:
+                    continue
+                
+                current_status = TaskStatus(raw[6])
+                old_status = self._task_snapshots.get(task_id)
+                
+                # Detect status change
+                if old_status is not None and old_status != current_status:
+                    task = Task(
+                        task_id=raw[0],
+                        creator=raw[1],
+                        specification_uri=raw[2],
+                        required_capability=raw[3],
+                        reward_wei=raw[4],
+                        deadline=raw[5],
+                        status=current_status,
+                        selected_worker=raw[7],
+                        accepted_bid_id=raw[8],
+                        result_uri=raw[9],
+                        result_hash=raw[10],
+                    )
+                    changes.append((task, old_status, current_status))
+                    logger.info(
+                        f"[Status Change] Task #{task_id}: {old_status.value} → {current_status.value}"
+                    )
+                
+                # Update snapshot
+                self._task_snapshots[task_id] = current_status
+            
+            return changes
+            
+        except Exception as e:
+            logger.error(f"Error polling task status changes: {e}")
+            return []
+
+    def run_buyer_cycle(self) -> None:
+        """
+        Complete buyer cycle per PRD P2.10:
+        1. Discover own open tasks → fetch bids → evaluate/select worker
+        2. Poll for SUBMITTED status → verify results
+        3. Track status transitions → handle settlements
+        """
+        # Phase 1: Process open tasks (worker selection)
+        open_tasks = self.discover_my_open_tasks()
+        
+        for task in open_tasks:
+            # Skip if already processed worker selection
+            if task.task_id in self._processed_tasks:
+                continue
+            
+            # Fetch bids
+            bids = self.market.fetch_bids_for_task(task.task_id)
+            
+            if not bids:
+                logger.debug(f"No bids yet for Task #{task.task_id}")
+                continue
+            
+            # Evaluate and select worker
+            try:
+                tx_hash = self.evaluate_and_select(task, bids)
+                if tx_hash:
+                    self._processed_tasks.add(task.task_id)
+                    logger.info(f"Worker selected for Task #{task.task_id}")
+            except Exception as e:
+                logger.error(f"Error selecting worker for Task #{task.task_id}: {e}")
+        
+        # Phase 2: Process submitted tasks (verification)
+        if self.verifier:
+            submitted_tasks = self.discover_my_submitted_tasks()
+            
+            for task in submitted_tasks:
+                try:
+                    logger.info(f"[Verify] Verifying submitted Task #{task.task_id}")
+                    self.verifier.verify_and_submit(task, use_light_verification=False)
+                except Exception as e:
+                    logger.error(f"Error verifying Task #{task.task_id}: {e}")
+        
+        # Phase 3: Poll for status changes (handle settlements)
+        status_changes = self.poll_task_status_changes()
+        
+        for task, old_status, new_status in status_changes:
+            # Handle settlement events
+            if new_status in [TaskStatus.VERIFIED_PASS, TaskStatus.VERIFIED_FAIL]:
+                self._handle_task_settlement(task, new_status)
+
+    def _handle_task_settlement(self, task: Task, status: TaskStatus) -> None:
+        """
+        Handle task settlement: update reputation tracking.
+        
+        Since there's no on-chain stake contract yet, this simulates stake slashing
+        by tracking it locally in reputation.simulated_stake_wei.
+        
+        Args:
+            task: Settled task
+            status: VERIFIED_PASS or VERIFIED_FAIL
+        """
+        passed = (status == TaskStatus.VERIFIED_PASS)
+        
+        logger.info("="*70)
+        logger.info(f"TASK SETTLEMENT - {self.name}")
+        logger.info("="*70)
+        logger.info(f"Task ID: #{task.task_id}")
+        logger.info(f"Worker: {task.selected_worker}")
+        logger.info(f"Result: {'✅ PASS' if passed else '❌ FAIL'}")
+        logger.info("="*70)
+        
+        # Fetch current reputation
+        if task.selected_worker:
+            reputation = self.registry.get_agent_reputation(task.selected_worker)
+            
+            if reputation:
+                logger.info(f"Worker reputation before: score={reputation.score}, "
+                           f"completed={reputation.completed_tasks}, failed={reputation.failed_tasks}")
+                
+                # Simulate local reputation update
+                # (On-chain updates happen in contract, this is just for logging)
+                if passed:
+                    logger.info(f"  → Reputation improved (task passed)")
+                else:
+                    logger.info(f"  → Reputation penalized (task failed)")
+                    # Simulate stake slash
+                    if reputation.simulated_stake_wei > 0:
+                        slash_amount = min(reputation.simulated_stake_wei, task.reward_wei // 10)
+                        logger.info(f"  → Simulated stake slash: {slash_amount} wei")
+        
+        logger.info("="*70)
+
+    def step(self) -> None:
+        """
+        Execute one cycle of the buyer agent.
+        
+        Complete buyer workflow:
+        1. Discover open tasks I created → select workers
+        2. Discover submitted tasks → verify results
+        3. Poll status changes → handle settlements
+        """
+        try:
+            self.run_buyer_cycle()
+        except Exception as e:
+            logger.error(f"Error in buyer cycle: {e}")
+
+    def run_forever(self, interval_seconds: int = 15) -> None:
+        """Continuously loop buyer agent lifecycle."""
+        logger.info("Starting BuyerAgent loop...")
+        logger.info("Agent will: select workers, verify results, handle settlements")
+        while True:
+            try:
+                self.step()
+            except Exception as e:
+                logger.error(f"Error in agent loop: {e}")
+            time.sleep(interval_seconds)
 
 
 if __name__ == "__main__":

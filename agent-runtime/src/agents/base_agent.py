@@ -62,7 +62,10 @@ class AutonomousAgent:
             name=name or os.getenv("AGENT_NAME", "MonadAgent-01"),
             balance_wei=self.signer.get_balance(),
             capabilities=caps_list,
-            reputation=Reputation(agent_address=self.signer.address),
+            reputation=Reputation(
+                agent_address=self.signer.address,
+                simulated_stake_wei=int(os.getenv("AGENT_SIMULATED_STAKE_WEI", "1000000000000000000"))  # 1 ETH default
+            ),
             policy_name=self.policy.name,
             is_active=True,
         )
@@ -71,9 +74,12 @@ class AutonomousAgent:
         self._in_progress: Set[int] = set()
         # Track tasks already submitted to avoid resubmission
         self._submitted: Set[int] = set()
+        # Task snapshots for lightweight event polling
+        self._task_snapshots: Dict[int, TaskStatus] = {}
 
         logger.info(f"Agent initialized: {self.agent_state.name} [{self.agent_state.wallet_address}]")
         logger.info(f"Active Policy: {self.policy.name}, Capabilities: {self.agent_state.capabilities}")
+        logger.info(f"Simulated Stake: {self.agent_state.reputation.simulated_stake_wei} wei")
 
     def observe(self) -> None:
         """Observe environment: update balance and network connectivity."""
@@ -249,6 +255,91 @@ class AutonomousAgent:
 
         # 3. Discover assigned tasks and execute
         self.run_worker_cycle()
+        
+        # 4. Poll for task settlements and update local reputation
+        self.poll_my_task_settlements()
+
+    def poll_my_task_settlements(self) -> None:
+        """
+        Poll for settlements on tasks I worked on and update local reputation.
+        
+        Tracks tasks transitioning to VERIFIED_PASS/VERIFIED_FAIL and updates
+        local reputation tracking (completed_tasks, failed_tasks, score, stake).
+        """
+        if not self.market.contract:
+            return
+        
+        try:
+            total = self.market.contract.functions.totalTasks().call()
+            my_address = self.signer.address.lower()
+            
+            for task_id in range(1, total + 1):
+                raw = self.market.contract.functions.getTask(task_id).call()
+                
+                # Only track tasks I worked on
+                selected_worker = raw[7]
+                if not selected_worker or selected_worker.lower() != my_address:
+                    continue
+                
+                current_status = TaskStatus(raw[6])
+                old_status = self._task_snapshots.get(task_id)
+                
+                # Detect settlement (transition to VERIFIED_PASS or VERIFIED_FAIL)
+                if old_status is not None and old_status != current_status:
+                    if current_status == TaskStatus.VERIFIED_PASS:
+                        self._handle_task_pass(task_id, raw[4])  # reward_wei
+                        logger.info(f"[Settlement] Task #{task_id} PASSED ✅")
+                    elif current_status == TaskStatus.VERIFIED_FAIL:
+                        self._handle_task_fail(task_id, raw[4])  # reward_wei
+                        logger.info(f"[Settlement] Task #{task_id} FAILED ❌")
+                
+                # Update snapshot
+                self._task_snapshots[task_id] = current_status
+                
+        except Exception as e:
+            logger.error(f"Error polling task settlements: {e}")
+
+    def _handle_task_pass(self, task_id: int, reward_wei: int) -> None:
+        """
+        Handle successful task completion: update local reputation.
+        
+        Args:
+            task_id: Task that passed verification
+            reward_wei: Task reward amount
+        """
+        self.agent_state.reputation.completed_tasks += 1
+        
+        # Improve reputation score (capped at 100)
+        score_increase = 2
+        self.agent_state.reputation.score = min(100, self.agent_state.reputation.score + score_increase)
+        
+        logger.info(f"[Reputation] Task #{task_id} passed:")
+        logger.info(f"  Completed tasks: {self.agent_state.reputation.completed_tasks}")
+        logger.info(f"  Reputation score: {self.agent_state.reputation.score}")
+
+    def _handle_task_fail(self, task_id: int, reward_wei: int) -> None:
+        """
+        Handle failed task: update local reputation and simulate stake slash.
+        
+        Args:
+            task_id: Task that failed verification
+            reward_wei: Task reward amount (used to calculate slash)
+        """
+        self.agent_state.reputation.failed_tasks += 1
+        
+        # Penalize reputation score (floored at 0)
+        score_decrease = 10
+        self.agent_state.reputation.score = max(0, self.agent_state.reputation.score - score_decrease)
+        
+        # Simulate stake slash (10% of reward, up to available stake)
+        slash_amount = min(self.agent_state.reputation.simulated_stake_wei, reward_wei // 10)
+        self.agent_state.reputation.simulated_stake_wei -= slash_amount
+        
+        logger.info(f"[Reputation] Task #{task_id} failed:")
+        logger.info(f"  Failed tasks: {self.agent_state.reputation.failed_tasks}")
+        logger.info(f"  Reputation score: {self.agent_state.reputation.score}")
+        logger.info(f"  Simulated stake slashed: {slash_amount} wei")
+        logger.info(f"  Remaining stake: {self.agent_state.reputation.simulated_stake_wei} wei")
 
     def run_forever(self, interval_seconds: int = 15) -> None:
         """Continuously loop agent lifecycle."""
