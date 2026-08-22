@@ -1,0 +1,12 @@
+{
+  "tailwindCSS.experimental.configFile": {
+    "frontend/**/*": "frontend/tailwind.config.ts"
+  },
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+  "tailwindCSS.validate": true,
+  "css.validate": false,
+  "css.customData": [".vscode/css_custom_data.json"]
+}
