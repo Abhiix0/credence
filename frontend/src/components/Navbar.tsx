@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { WalletConnect } from './WalletConnect';
 
 interface NavbarProps {
   economy?: boolean;
@@ -51,39 +52,42 @@ export default function Navbar({ economy = false }: NavbarProps) {
       </Link>
 
       {/* Right side */}
-      {economy ? (
-        <span
-          className="text-xs tracking-[0.25em] uppercase"
-          style={{ fontFamily: 'var(--font-label)', color: 'var(--color-muted-fg)' }}
-        >
-          The Economy
-        </span>
-      ) : (
-        <nav aria-label="Main navigation">
-          <Link
-            to="/about"
-            className="text-sm tracking-wider uppercase transition-all duration-150 relative group"
-            style={{
-              fontFamily: 'var(--font-label)',
-              color: location.pathname === '/about' ? '#00ff88' : 'var(--color-muted-fg)',
-              textShadow: location.pathname === '/about'
-                ? '0 0 8px rgba(0,255,136,0.5)'
-                : 'none',
-            }}
+      <div className="flex items-center gap-4">
+        {economy ? (
+          <span
+            className="text-xs tracking-[0.25em] uppercase"
+            style={{ fontFamily: 'var(--font-label)', color: 'var(--color-muted-fg)' }}
           >
-            About
-            {/* Underline neon bar */}
-            <span
-              className="absolute -bottom-0.5 left-0 right-0 h-px transition-all duration-150"
+            The Economy
+          </span>
+        ) : (
+          <nav aria-label="Main navigation">
+            <Link
+              to="/about"
+              className="text-sm tracking-wider uppercase transition-all duration-150 relative group"
               style={{
-                background: '#00ff88',
-                opacity: location.pathname === '/about' ? 1 : 0,
-                boxShadow: '0 0 6px rgba(0,255,136,0.8)',
+                fontFamily: 'var(--font-label)',
+                color: location.pathname === '/about' ? '#00ff88' : 'var(--color-muted-fg)',
+                textShadow: location.pathname === '/about'
+                  ? '0 0 8px rgba(0,255,136,0.5)'
+                  : 'none',
               }}
-            />
-          </Link>
-        </nav>
-      )}
+            >
+              About
+              {/* Underline neon bar */}
+              <span
+                className="absolute -bottom-0.5 left-0 right-0 h-px transition-all duration-150"
+                style={{
+                  background: '#00ff88',
+                  opacity: location.pathname === '/about' ? 1 : 0,
+                  boxShadow: '0 0 6px rgba(0,255,136,0.8)',
+                }}
+              />
+            </Link>
+          </nav>
+        )}
+        <WalletConnect />
+      </div>
     </header>
   );
 }
