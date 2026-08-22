@@ -1,7 +1,7 @@
 import os
 from typing import List, Optional
 from web3 import Web3
-from ..models import Task, TaskStatus
+from ..models import Task, TaskStatus, Bid
 from ..wallet.signer import WalletSigner
 
 # Minimal ABI for TaskMarket contract interactions
@@ -57,6 +57,45 @@ TASK_MARKET_ABI = [
             {"internalType": "bytes32", "name": "resultHash", "type": "bytes32"},
         ],
         "name": "submitResult",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [{"internalType": "uint256", "name": "bidId", "type": "uint256"}],
+        "name": "getBid",
+        "outputs": [
+            {
+                "components": [
+                    {"internalType": "uint256", "name": "id", "type": "uint256"},
+                    {"internalType": "uint256", "name": "taskId", "type": "uint256"},
+                    {"internalType": "address", "name": "bidder", "type": "address"},
+                    {"internalType": "uint256", "name": "proposedPrice", "type": "uint256"},
+                    {"internalType": "uint256", "name": "estimatedDuration", "type": "uint256"},
+                    {"internalType": "uint256", "name": "timestamp", "type": "uint256"},
+                    {"internalType": "bool", "name": "isAccepted", "type": "bool"},
+                ],
+                "internalType": "struct ITaskMarket.Bid",
+                "name": "",
+                "type": "tuple",
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [{"internalType": "uint256", "name": "taskId", "type": "uint256"}],
+        "name": "getTaskBids",
+        "outputs": [{"internalType": "uint256[]", "name": "", "type": "uint256[]"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {"internalType": "uint256", "name": "taskId", "type": "uint256"},
+            {"internalType": "uint256", "name": "bidId", "type": "uint256"},
+        ],
+        "name": "selectWorker",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",
@@ -128,6 +167,54 @@ class TaskMarketClient:
 
         tx = self.contract.functions.submitResult(
             task_id, result_uri, result_hash
+        ).build_transaction({
+            "from": self.signer.address,
+            "gas": 300000,
+        })
+        return self.signer.sign_and_send_transaction(tx)
+
+    def fetch_bid(self, bid_id: int) -> Optional[Bid]:
+        """Fetch a single bid by ID from the contract."""
+        if not self.contract:
+            return None
+        
+        try:
+            raw = self.contract.functions.getBid(bid_id).call()
+            return Bid(
+                bid_id=raw[0],
+                task_id=raw[1],
+                bidder=raw[2],
+                proposed_price_wei=raw[3],
+                estimated_duration_sec=raw[4],
+                timestamp=raw[5],
+                is_accepted=raw[6],
+            )
+        except Exception:
+            return None
+
+    def fetch_bids_for_task(self, task_id: int) -> List[Bid]:
+        """Fetch all bids for a specific task."""
+        if not self.contract:
+            return []
+        
+        try:
+            bid_ids = self.contract.functions.getTaskBids(task_id).call()
+            bids = []
+            for bid_id in bid_ids:
+                bid = self.fetch_bid(bid_id)
+                if bid:
+                    bids.append(bid)
+            return bids
+        except Exception:
+            return []
+
+    def select_worker(self, task_id: int, bid_id: int) -> Optional[str]:
+        """Select a worker for a task by accepting their bid."""
+        if not self.contract or not self.signer.account:
+            return None
+
+        tx = self.contract.functions.selectWorker(
+            task_id, bid_id
         ).build_transaction({
             "from": self.signer.address,
             "gas": 300000,
