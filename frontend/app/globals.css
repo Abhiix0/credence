@@ -80,6 +80,13 @@ body::after {
   }
 }
 
+/* Transaction pulse animation for agent network */
+@media (prefers-reduced-motion: no-preference) {
+  .transaction-pulse {
+    opacity: 1;
+  }
+}
+
 /* Reduced motion: disable all animations */
 @media (prefers-reduced-motion: reduce) {
   .cyber-glitch {
@@ -96,6 +103,10 @@ body::after {
   }
   
   .hud-pulse-dot {
+    display: none;
+  }
+  
+  .transaction-pulse {
     display: none;
   }
   

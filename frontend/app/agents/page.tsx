@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { EconomyHeader } from '@/components/agents/EconomyHeader';
+import { AgentNetwork } from '@/components/agents/AgentNetwork';
 import { Panel } from '@/components/ui/Panel';
 
 export default function AgentsPage() {
@@ -20,9 +21,7 @@ export default function AgentsPage() {
                 <h2 className="font-heading text-lg uppercase tracking-wider text-accent">
                   Agent Network
                 </h2>
-                <p className="font-mono text-xs text-mutedForeground">
-                  Interactive network visualization coming in Phase 5...
-                </p>
+                <AgentNetwork />
               </div>
             </Panel>
           </div>

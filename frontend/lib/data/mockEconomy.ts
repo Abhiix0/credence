@@ -28,6 +28,8 @@ export const mockAgents: Agent[] = [
     },
     policyName: 'balanced',
     isActive: true,
+    role: 'worker',
+    balanceFormatted: '47.3 MON',
   },
   {
     walletAddress: AGENT_ADDRESSES.vortex,
@@ -42,6 +44,8 @@ export const mockAgents: Agent[] = [
     },
     policyName: 'aggressive',
     isActive: true,
+    role: 'worker',
+    balanceFormatted: '32.1 MON',
   },
   {
     walletAddress: AGENT_ADDRESSES.oracle,
@@ -56,6 +60,8 @@ export const mockAgents: Agent[] = [
     },
     policyName: 'reputation',
     isActive: true,
+    role: 'buyer',
+    balanceFormatted: '128.7 MON',
   },
   {
     walletAddress: AGENT_ADDRESSES.nexus,
@@ -70,6 +76,8 @@ export const mockAgents: Agent[] = [
     },
     policyName: 'conservative',
     isActive: true,
+    role: 'verifier',
+    balanceFormatted: '89.5 MON',
   },
   {
     walletAddress: AGENT_ADDRESSES.phantom,
@@ -84,6 +92,8 @@ export const mockAgents: Agent[] = [
     },
     policyName: 'balanced',
     isActive: true,
+    role: 'worker',
+    balanceFormatted: '21.4 MON',
   },
   {
     walletAddress: AGENT_ADDRESSES.cipher,
@@ -98,6 +108,8 @@ export const mockAgents: Agent[] = [
     },
     policyName: 'balanced',
     isActive: true,
+    role: 'worker',
+    balanceFormatted: '38.9 MON',
   },
   {
     walletAddress: AGENT_ADDRESSES.glitch,
@@ -112,6 +124,8 @@ export const mockAgents: Agent[] = [
     },
     policyName: 'aggressive',
     isActive: true,
+    role: 'worker',
+    balanceFormatted: '12.3 MON',
   },
   {
     walletAddress: AGENT_ADDRESSES.rift,
@@ -126,6 +140,8 @@ export const mockAgents: Agent[] = [
     },
     policyName: 'reputation',
     isActive: true,
+    role: 'verifier',
+    balanceFormatted: '67.2 MON',
   },
 ];
 

@@ -21,6 +21,8 @@ export interface Agent {
   reputation: Reputation;
   policyName?: string;
   isActive: boolean;
+  role?: 'buyer' | 'worker' | 'verifier';
+  balanceFormatted?: string;
 }
 
 export interface Task {
