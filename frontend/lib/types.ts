@@ -21,6 +21,8 @@ export interface Agent {
   reputation: Reputation;
   policyName?: string;
   isActive: boolean;
+  role?: 'buyer' | 'worker' | 'verifier';
+  balanceFormatted?: string;
 }
 
 export interface Task {
@@ -58,4 +60,28 @@ export interface Settlement {
   timestamp: number;
   resultProof: string;
   passed: boolean;
+}
+
+export interface ActivityEvent {
+  id: string;
+  timestamp: number;
+  message: string;
+  kind:
+    | 'task_created'
+    | 'bid_submitted'
+    | 'worker_selected'
+    | 'escrow_locked'
+    | 'result_submitted'
+    | 'verification_pass'
+    | 'verification_fail'
+    | 'settlement'
+    | 'reputation_change';
+}
+
+export interface EconomyStats {
+  agentsOnline: number;
+  activeTasks: number;
+  totalTransactions: number;
+  volumeFormatted: string;
+  successRatePct: number;
 }
