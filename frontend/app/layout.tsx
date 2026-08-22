@@ -1,6 +1,8 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import { Orbitron, JetBrains_Mono } from 'next/font/google';
+import { Navbar } from '@/components/layout/Navbar';
+import { Footer } from '@/components/layout/Footer';
 import './globals.css';
 
 const orbitron = Orbitron({
@@ -25,8 +27,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${orbitron.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-background text-foreground antialiased min-h-screen">
-        {children}
+      <body className="bg-background text-foreground antialiased min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex flex-col">
+          {children}
+        </div>
+        <Footer />
       </body>
     </html>
   );
