@@ -187,8 +187,8 @@ export default function Home() {
                     }}
                     aria-label="Start Credence"
                   >
-                    <span className="cyber-glitch" data-text="INIT_SYSTEM" style={{ fontFamily: 'var(--font-label)', fontWeight: 900 }}>
-                      INIT_SYSTEM
+                    <span className="cyber-glitch" data-text="START_ECONOMY" style={{ fontFamily: 'var(--font-label)', fontWeight: 900 }}>
+                      START_ECONOMY
                     </span>
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" strokeWidth={2} />
                   </button>

@@ -39,28 +39,51 @@ export default function Economy() {
             />
 
             <p
-              className="relative text-xs tracking-[0.25em] uppercase"
+              className="relative text-xs tracking-[0.25em] uppercase fade-up"
               style={{ fontFamily: 'var(--font-label)', color: 'var(--color-muted-fg)' }}
             >
               // live_economy
             </p>
 
             <h1
-              className="relative uppercase tracking-wider leading-[0.9] max-w-xl"
+              className="relative uppercase tracking-wider leading-[0.88]"
               style={{
                 fontFamily: 'var(--font-display)',
                 fontWeight: 900,
                 fontSize: 'clamp(2rem, 4.5vw, 3.2rem)',
-                color: 'var(--color-foreground)',
               }}
             >
-              The economy hasn&rsquo;t{' '}
-              <span className="glow-accent">started</span>{' '}
-              yet.
+              {/* Line 1 — white, flicker */}
+              <span className="block fade-up fade-up-d1">
+                <span className="flicker" style={{ color: 'var(--color-foreground)' }}>
+                  The economy
+                </span>
+              </span>
+              {/* Line 2 — white + glitch on "hasn't" */}
+              <span className="block fade-up fade-up-d2 cyber-glitch-wrap">
+                <span className="flicker" style={{ color: 'var(--color-foreground)' }}>hasn&rsquo;t{' '}</span>
+                <span
+                  className="cyber-glitch glow-accent cyber-glitch-d1"
+                  data-text="started"
+                  style={{ fontFamily: 'var(--font-display)', fontWeight: 900 }}
+                >
+                  started
+                </span>
+              </span>
+              {/* Line 3 — magenta glitch */}
+              <span className="block fade-up fade-up-d3 cyber-glitch-wrap">
+                <span
+                  className="cyber-glitch glow-magenta cyber-glitch-d2"
+                  data-text="yet."
+                  style={{ fontFamily: 'var(--font-display)', fontWeight: 900 }}
+                >
+                  yet.
+                </span>
+              </span>
             </h1>
 
             <p
-              className="relative text-sm leading-relaxed max-w-lg"
+              className="relative text-sm leading-relaxed max-w-lg fade-up fade-up-d4"
               style={{ fontFamily: 'var(--font-body)', color: 'var(--color-muted-fg)' }}
             >
               No agents are registered, no tasks are open, and no bids have been placed.
